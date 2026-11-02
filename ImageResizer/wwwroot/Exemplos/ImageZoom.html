@@ -1,0 +1,217 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ImageZoom</title>
+  <style>
+    :root {
+      color-scheme: light;
+      font: 15px/1.4 system-ui, sans-serif;
+      color: #172536;
+      background: #aedafa;
+    }
+    * { box-sizing: border-box; }
+    body {
+      min-height: 100vh;
+      margin: 0;
+      display: grid;
+      place-items: center;
+      padding: 20px;
+      background: #aedafa;
+    }
+    .app { width: min(100%, 836px); }
+    .viewer-frame {
+      position: relative;
+      width: 100%;
+      aspect-ratio: 836 / 536;
+      overflow: hidden;
+      border: 18px solid #050505;
+      border-radius: 13px;
+      background: #050505;
+      box-shadow: 0 12px 30px rgb(32 78 112 / 18%);
+    }
+    #viewer {
+      position: absolute;
+      inset: 0;
+      display: block;
+      width: 100%;
+      height: 100%;
+      background: #fff;
+      cursor: grab;
+    }
+    #viewer:active { cursor: grabbing; }
+    .corner-tools {
+      position: absolute;
+      z-index: 2;
+      left: 2px;
+      bottom: 20px;
+      display: flex;
+      align-items: flex-end;
+      gap: 6px;
+    }
+    .navigator-panel {
+      position: relative;
+      padding: 3px;
+      border: 3px solid #111;
+      background: #fff;
+      box-shadow: 1px 2px 3px rgb(0 0 0 / 25%);
+    }
+    .navigator-title {
+      position: absolute;
+      z-index: 0;
+      inset: 50% 0 auto;
+      margin: 0;
+      transform: translateY(-50%);
+      color: #ef913d;
+      font-family: Georgia, serif;
+      font-size: 20px;
+      font-stretch: condensed;
+      line-height: 1.1;
+      text-align: center;
+      pointer-events: none;
+    }
+    #navigator {
+      position: relative;
+      z-index: 1;
+      display: block;
+      width: 126px;
+      height: 86px;
+      cursor: move;
+      touch-action: none;
+      background: transparent;
+    }
+    .zoom-controls {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .zoom-controls button {
+      width: 29px;
+      height: 27px;
+      padding: 0;
+      border: 1px solid #aaa;
+      border-radius: 5px;
+      color: #333;
+      background: linear-gradient(#fff, #d5d5d5);
+      box-shadow: 0 1px 2px rgb(0 0 0 / 25%);
+      font: 20px/1 system-ui, sans-serif;
+      cursor: pointer;
+    }
+    .zoom-controls button:hover { background: #fff; }
+    .zoom-controls button:focus-visible { outline: 2px solid #ef913d; outline-offset: 1px; }
+    #status {
+      position: absolute;
+      top: 7px;
+      right: 8px;
+      z-index: 2;
+      padding: 2px 5px;
+      color: #222;
+      background: rgb(255 255 255 / 75%);
+      font-size: 11px;
+      line-height: 1.2;
+    }
+    .progress-indicator {
+      position: absolute;
+      right: 1px;
+      bottom: 0;
+      z-index: 3;
+      width: 82px;
+      height: 7px;
+      overflow: hidden;
+      border: 1px solid #161616;
+      background: #d6d6d6;
+      opacity: 0;
+      transition: opacity 120ms ease;
+    }
+    .progress-indicator.active { opacity: 1; }
+    .progress-fill {
+      width: 0;
+      height: 100%;
+      background: #ef913d;
+      transition: width 100ms linear;
+    }
+    .progress-indicator.indeterminate .progress-fill {
+      width: 35%;
+      animation: progress-sweep 900ms ease-in-out infinite alternate;
+    }
+    @keyframes progress-sweep {
+      from { transform: translateX(-5%); }
+      to { transform: translateX(195%); }
+    }
+    .help {
+      margin: 10px 2px 0;
+      color: #31536c;
+      font-size: 13px;
+      text-align: center;
+    }
+    @media (max-width: 520px) {
+      body { padding: 12px; }
+      .viewer-frame { border-width: 12px; }
+      .corner-tools { left: 0; bottom: 15px; gap: 4px; }
+      .navigator-panel { padding: 2px; border-width: 2px; }
+      .navigator-title { font-size: 15px; }
+      #navigator { width: 95px; height: 65px; }
+      .zoom-controls button { width: 26px; height: 25px; }
+      .progress-indicator { width: 58px; height: 6px; }
+      #status { font-size: 9px; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { scroll-behavior: auto !important; transition-duration: 0.01ms !important; animation-duration: 0.01ms !important; }
+    }
+  </style>
+</head>
+<body>
+  <main class="app">
+    <section class="viewer-frame" aria-label="ImageZoom">
+      <canvas id="viewer" width="800" height="500" aria-label="Visualizador de imagem"></canvas>
+      <div class="corner-tools">
+        <div class="navigator-panel">
+          <p class="navigator-title">IZ Navigator</p>
+          <canvas id="navigator" width="190" height="130" aria-label="Miniatura e área visível"></canvas>
+        </div>
+        <div class="zoom-controls" role="group" aria-label="Controles de zoom">
+          <button id="zoom-in" type="button" title="Ampliar" aria-label="Ampliar">+</button>
+          <button id="zoom-out" type="button" title="Reduzir" aria-label="Reduzir">−</button>
+          <button id="reset" type="button" title="Enquadramento original" aria-label="Voltar ao enquadramento original">↻</button>
+        </div>
+      </div>
+      <span id="status" aria-live="polite">Carregando…</span>
+      <div id="progress" class="progress-indicator" role="progressbar" aria-label="Progresso do carregamento" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+        <div id="progress-fill" class="progress-fill"></div>
+      </div>
+    </section>
+    <p class="help">Clique ou use + para ampliar; arraste a imagem para mover. No navegador, arraste o quadro para selecionar a área.</p>
+  </main>
+  <script src="https://code.createjs.com/1.0.0/createjs.min.js"></script>
+  <script src="../js/image-zoom.js"></script>
+  <script>
+    const status = document.getElementById("status");
+    const progress = document.getElementById("progress");
+    const progressFill = document.getElementById("progress-fill");
+    const imageUrl = new URLSearchParams(location.search).get("image") || "images/Cambio.jpg";
+    let latestProgressRequest = 0;
+    const viewer = new ImageZoom({
+      canvas: document.getElementById("viewer"),
+      navigatorCanvas: document.getElementById("navigator"),
+      image: imageUrl,
+      zoomPercent: 50,
+      easingDuration: 250,
+      onLoad: ({ width, height }) => { status.textContent = `${width} × ${height} · 100%`; },
+      onError: () => { status.textContent = "Falha ao carregar a imagem"; },
+      onChange: ({ width, height, zoomPercent }) => { status.textContent = `${width} × ${height} · ${zoomPercent}%`; },
+      onProgress: ({ requestId, active, percent = 0, indeterminate }) => {
+        if (requestId < latestProgressRequest) return;
+        latestProgressRequest = requestId;
+        progress.classList.toggle("active", active);
+        progress.classList.toggle("indeterminate", active && indeterminate);
+        progressFill.style.width = `${percent}%`;
+        progress.setAttribute("aria-valuenow", String(percent));
+      }
+    });
+    document.getElementById("zoom-in").addEventListener("click", () => viewer.zoomMore());
+    document.getElementById("zoom-out").addEventListener("click", () => viewer.zoomLess());
+    document.getElementById("reset").addEventListener("click", () => viewer.zoomReset());
+  </script>
+</body>
+</html>

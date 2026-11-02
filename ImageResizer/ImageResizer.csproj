@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>ImageResizer</RootNamespace>
+    <AssemblyName>ImageResizer</AssemblyName>
+    <Version>1.0.0</Version>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="SkiaSharp" Version="3.119.4" />
+    <PackageReference Include="SkiaSharp.NativeAssets.Linux.NoDependencies" Version="3.119.4" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Content Remove="Images/**/*.aspx" />
+    <Content Remove="Exemplos/images/**/*.aspx" />
+    <Compile Remove="Images/**/*.cs" />
+    <Compile Remove="Properties/**/*.cs" />
+    <EmbeddedResource Remove="Properties/Resources.resx" />
+  </ItemGroup>
+</Project>

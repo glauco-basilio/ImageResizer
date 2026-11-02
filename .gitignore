@@ -1,0 +1,22 @@
+# .NET build output
+**/bin/
+**/obj/
+**/TestResults/
+*.dll
+*.pdb
+*.cache
+
+# IDE and operating system files
+.idea/
+.vs/
+.vscode/
+.DS_Store
+*.suo
+*.user
+*.scc
+*.vssscc
+*.vspscc
+
+# Local temporary files and generated installer output
+.tmp/
+Setup/Debug/

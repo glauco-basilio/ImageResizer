@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<macromedia-extension name="ImageZoom" version="1.0.0" type="flashcomponentswc" requires-restart="true">
+
+	<!-- Describe the author -->
+
+	<author name="Rimisan Soluções de Internet" />
+
+	<!-- List the required/compatible products -->
+
+	<products>
+		<product name="Flash" version="8" primary="true" />
+		<product name="Flash" version="9" />
+	</products>
+
+	<!-- Describe the extension -->
+
+	<description>
+		<![CDATA[
+			ImageZoom v1.0.0 
+		]]>
+	</description>
+
+	<!-- Describe where the extension shows in the UI of the product -->
+
+	<ui-access>
+		<![CDATA[ImageZoom v1.0.0]]>
+	</ui-access>
+
+	<!-- Describe the files that comprise the extension -->
+
+	<files>
+		<file name="ImageZoom.swc" destination="$flash/Components/Rimisan" />
+		<file name="ImageZoomNavigator.swc" destination="$flash/Components/Rimisan" />
+	</files>
+
+</macromedia-extension>

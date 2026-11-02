@@ -1,0 +1,1 @@
+<%@ Page Language="C#" AutoEventWireup="true" CodeBehind="ImageInfo.aspx.cs" Inherits="ImageResizer.ImageInfo" ContentType="text/xml" %>
