@@ -498,6 +498,7 @@
           return { tile, key, requestKey: `${imageGeneration}|${key}` };
         })
         .filter(item => !this._tileCache.has(item.key) && !this._tileRequests.has(item.requestKey));
+      console.info(`[ImageZoom] Enfileirando ${neighbors.length} tiles vizinhos.`);
       neighbors.forEach(item => this._tileRequests.add(item.requestKey));
       this._tilePrefetchQueue.push(...neighbors.map(item => ({
         ...item,
