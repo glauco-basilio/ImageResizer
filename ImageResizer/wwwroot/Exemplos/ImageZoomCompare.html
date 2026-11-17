@@ -78,7 +78,7 @@
     <a class="back" href="../">← Voltar aos exemplos</a>
   </main>
   <script src="https://code.createjs.com/1.0.0/createjs.min.js"></script>
-  <script src="../js/image-zoom.js?v=neighbor-prefetch-wide-2"></script>
+  <script src="../js/image-zoom.js?v=neighbor-prefetch-wide-3"></script>
   <script>
     const image = new URLSearchParams(location.search).get("image") || "images/range.jpg";
 
@@ -185,11 +185,6 @@
       navigatorCanvas.addEventListener("pointermove", event => { if (event.buttons) markLeader(viewer, 100); });
     }
 
-    window.addEventListener("pointerup", () => {
-      if (!leader) return;
-      markLeader(leader, 350);
-      syncFollower(true);
-    });
     for (const viewer of Object.values(viewers)) {
       viewer._onChange = state => {
         const status = document.getElementById(viewer === viewers.original ? "status-original" : "status-prefetch");

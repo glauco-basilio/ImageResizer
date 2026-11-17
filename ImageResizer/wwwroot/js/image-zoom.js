@@ -2,6 +2,8 @@
 (function (global) {
   "use strict";
 
+  const pendingImageRequests = new Map();
+
   class ImageZoom {
     static fitContain(imageWidth, imageHeight, boxWidth, boxHeight) {
       const scale = Math.min(boxWidth / imageWidth, boxHeight / imageHeight);
@@ -181,48 +183,70 @@
       Object.entries(parameters).forEach(([key, value]) => url.searchParams.set(key, String(value)));
       const reportProgress = options.reportProgress !== false;
       const requestId = reportProgress ? ++this._progressRequestId : 0;
-      let objectUrl;
-      try {
+      const canShare = !options.signal;
+      const existingRequest = canShare ? pendingImageRequests.get(url.href) : null;
+      if (existingRequest) {
         if (reportProgress)
           this._onProgress({ requestId, active: true, percent: 0, indeterminate: true, action });
-        const response = await fetch(url);
-        if (!response.ok) throw new Error(`Resizer.aspx returned HTTP ${response.status}.`);
-        const total = Number(response.headers.get("content-length"));
-        let blob;
-        if (response.body?.getReader) {
-          const reader = response.body.getReader();
-          const chunks = [];
-          let received = 0;
-          while (true) {
-            const { done, value } = await reader.read();
-            if (done) break;
-            chunks.push(value);
-            received += value.byteLength;
-            if (reportProgress) {
-              this._onProgress({
-                requestId,
-                active: true,
-                percent: total > 0 ? Math.min(100, Math.round(received * 100 / total)) : 0,
-                indeterminate: !(total > 0),
-                action
-              });
-            }
-          }
-          blob = new Blob(chunks, { type: response.headers.get("content-type") || "image/jpeg" });
-        } else {
-          blob = await response.blob();
+        try {
+          return await existingRequest;
+        } finally {
+          if (reportProgress)
+            this._onProgress({ requestId, active: false, percent: 100, indeterminate: false, action });
         }
-        objectUrl = URL.createObjectURL(blob);
-        return await new Promise((resolve, reject) => {
-          const image = new Image();
-          image.onload = () => resolve(image);
-          image.onerror = () => reject(new Error("The resized image response could not be decoded."));
-          image.src = objectUrl;
-        });
+      }
+
+      let objectUrl;
+      const request = (async () => {
+        try {
+          if (reportProgress)
+            this._onProgress({ requestId, active: true, percent: 0, indeterminate: true, action });
+          const response = await fetch(url, options.signal ? { signal: options.signal } : undefined);
+          if (!response.ok) throw new Error(`Resizer.aspx returned HTTP ${response.status}.`);
+          const total = Number(response.headers.get("content-length"));
+          let blob;
+          if (response.body?.getReader) {
+            const reader = response.body.getReader();
+            const chunks = [];
+            let received = 0;
+            while (true) {
+              const { done, value } = await reader.read();
+              if (done) break;
+              chunks.push(value);
+              received += value.byteLength;
+              if (reportProgress) {
+                this._onProgress({
+                  requestId,
+                  active: true,
+                  percent: total > 0 ? Math.min(100, Math.round(received * 100 / total)) : 0,
+                  indeterminate: !(total > 0),
+                  action
+                });
+              }
+            }
+            blob = new Blob(chunks, { type: response.headers.get("content-type") || "image/jpeg" });
+          } else {
+            blob = await response.blob();
+          }
+          objectUrl = URL.createObjectURL(blob);
+          return await new Promise((resolve, reject) => {
+            const image = new Image();
+            image.onload = () => resolve(image);
+            image.onerror = () => reject(new Error("The resized image response could not be decoded."));
+            image.src = objectUrl;
+          });
+        } finally {
+          if (objectUrl) URL.revokeObjectURL(objectUrl);
+          if (reportProgress)
+            this._onProgress({ requestId, active: false, percent: 100, indeterminate: false, action });
+        }
+      })();
+      if (canShare) pendingImageRequests.set(url.href, request);
+      try {
+        return await request;
       } finally {
-        if (objectUrl) URL.revokeObjectURL(objectUrl);
-        if (reportProgress)
-          this._onProgress({ requestId, active: false, percent: 100, indeterminate: false, action });
+        if (canShare && pendingImageRequests.get(url.href) === request)
+          pendingImageRequests.delete(url.href);
       }
     }
 
