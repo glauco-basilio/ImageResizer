@@ -18,8 +18,6 @@ A implementação atual usa CreateJS no navegador e SkiaSharp no backend. O cód
 
 Requer o .NET 10 SDK.
 
-**Demo ao vivo:** [ImageZoom no Hostinger](https://app.semneurose.com.br/imagezoom/)
-
 ```sh
 dotnet build ImageResizer.sln
 dotnet run --project ImageResizer/ImageResizer.csproj
