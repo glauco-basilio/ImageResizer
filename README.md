@@ -4,6 +4,8 @@ O ImageZoom começou como uma extensão para Adobe Flash, vendida junto com um b
 
 O objetivo é documentar um trabalho de produto e engenharia de outra época: ampliar e navegar imagens dentro de uma área limitada, oferecer uma miniatura navegável e delegar operações de imagem a um serviço. A demo atual é um case de portfólio, não uma oferta de produto nem uma tentativa de competir com serviços modernos de imagens em tiles.
 
+**Demo ao vivo:** [ImageZoom no Hostinger](https://app.semneurose.com.br/imagezoom/)
+
 ## O que a demo mostra
 
 - Visualização em canvas com zoom, arraste, enquadramento inicial e miniatura navegável.
@@ -25,7 +27,7 @@ dotnet run --project ImageResizer/ImageResizer.csproj
 
 Abra o endereço impresso pelo `dotnet run` (por padrão, `http://localhost:5080/`). A página inicial lista as imagens e abre cada uma no visualizador. O CreateJS 1.0.0 é carregado de um CDN, então a demo precisa de internet no navegador.
 
-O deploy usa o `Dockerfile` deste repositório e publica a aplicação sob o prefixo `/imagezoom`.
+No Hostinger, a aplicação roda em um container com o runtime oficial do .NET. O build de produção é feito localmente e enviado ao VPS; binários e credenciais não são armazenados neste repositório.
 
 ## API legada preservada
 

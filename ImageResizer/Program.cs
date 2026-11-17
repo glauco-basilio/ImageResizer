@@ -12,7 +12,19 @@ var contentRoot = Path.GetFullPath(app.Environment.WebRootPath ?? Path.Combine(a
 
 var pathBase = builder.Configuration["AppBasePath"];
 if (!string.IsNullOrWhiteSpace(pathBase))
+{
+    app.Use(async (context, next) =>
+    {
+        if (context.Request.Path == pathBase)
+        {
+            context.Response.Redirect($"{pathBase}/{context.Request.QueryString}", permanent: true);
+            return;
+        }
+
+        await next();
+    });
     app.UsePathBase(pathBase);
+}
 
 app.UseStaticFiles();
 
