@@ -145,6 +145,19 @@
       font-size: 13px;
       text-align: center;
     }
+    .prefetch-option {
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+      gap: 9px;
+      margin: 18px 0 0;
+      color: #18283b;
+      font-size: 14px;
+      font-weight: 650;
+      cursor: pointer;
+    }
+    .prefetch-option input { width: 18px; height: 18px; margin: 2px 0 0; accent-color: #1769aa; }
+    .prefetch-description { max-width: 620px; margin: 5px auto 0; color: #5a6c7f; font-size: 12px; text-align: center; }
     @media (max-width: 520px) {
       body { padding: 12px; }
       .viewer-frame { border-width: 12px; }
@@ -182,6 +195,11 @@
       </div>
     </section>
     <p class="help">Clique ou use + para ampliar; arraste a imagem para mover. No navegador, arraste o quadro para selecionar a área.</p>
+    <label class="prefetch-option" for="neighbor-prefetch">
+      <input id="neighbor-prefetch" type="checkbox">
+      <span>Pré-carregar os recortes vizinhos</span>
+    </label>
+    <p class="prefetch-description">Depois de cada recorte, busca até oito áreas próximas em segundo plano. Áreas prontas aparecem durante o arraste; as demais continuam usando a prévia até o próximo recorte carregar.</p>
   </main>
   <script src="https://code.createjs.com/1.0.0/createjs.min.js"></script>
   <script src="../js/image-zoom.js?v=neighbor-prefetch-2"></script>
@@ -195,6 +213,7 @@
       canvas: document.getElementById("viewer"),
       navigatorCanvas: document.getElementById("navigator"),
       image: imageUrl,
+      neighborPrefetch: document.getElementById("neighbor-prefetch").checked,
       zoomPercent: 50,
       easingDuration: 250,
       onLoad: ({ width, height }) => { status.textContent = `${width} × ${height} · 100%`; },
@@ -212,6 +231,9 @@
     document.getElementById("zoom-in").addEventListener("click", () => viewer.zoomMore());
     document.getElementById("zoom-out").addEventListener("click", () => viewer.zoomLess());
     document.getElementById("reset").addEventListener("click", () => viewer.zoomReset());
+    document.getElementById("neighbor-prefetch").addEventListener("change", event => {
+      viewer.setNeighborPrefetch(event.target.checked);
+    });
   </script>
 </body>
 </html>

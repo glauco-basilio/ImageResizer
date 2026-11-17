@@ -41,6 +41,9 @@
     .story aside { padding-left: 20px; border-left: 1px solid #dce4ed; }
     .story aside strong { display: block; margin-bottom: 6px; color: #18283b; }
     .archive-link { color: #1769aa; font-weight: 650; text-underline-offset: 3px; }
+    .experiment { margin: -18px 0 42px; padding: 20px 24px; border: 1px solid #c9dced; border-radius: 14px; background: #edf6fc; }
+    .experiment h2 { margin-bottom: 7px; font-size: 19px; }
+    .experiment p { margin: 0; color: #405970; }
     footer { padding: 20px 24px; border-top: 1px solid #dce4ed; color: #657588; font-size: 13px; text-align: center; }
     @media (max-width: 700px) { .story { grid-template-columns: 1fr; } .story aside { padding: 16px 0 0; border-top: 1px solid #dce4ed; border-left: 0; } }
     @media (max-width: 560px) { header { padding: 44px 20px 34px; } main { padding: 30px 20px 48px; } .card img { height: 170px; } }
@@ -64,6 +67,10 @@
         <strong>O que você pode explorar</strong>
         <p>Zoom e navegação por miniatura, redimensionamento e recorte no backend, além do código ActionScript e dos arquivos Flash preservados no repositório.</p>
       </aside>
+    </section>
+    <section class="experiment" aria-labelledby="experiment-title">
+      <h2 id="experiment-title">Uma melhoria experimental com apoio de IA</h2>
+      <p>Além de reconstruir o projeto original, esta versão acrescenta pré-carregamento opcional dos oito recortes vizinhos. Ative a opção dentro de qualquer exemplo para ver as áreas já preparadas aparecerem durante o arraste; o recurso começa desligado para você comparar a navegação original e a melhoria.</p>
     </section>
     <section aria-labelledby="examples-title">
       <div class="section-heading">

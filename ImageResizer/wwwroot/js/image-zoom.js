@@ -46,6 +46,7 @@
       this._onChange = options.onChange || function () {};
       this._onProgress = options.onProgress || function () {};
       this._progressRequestId = 0;
+      this._neighborPrefetchEnabled = options.neighborPrefetch === true;
       this._tileCache = new Map();
       this._tileCacheBytes = 0;
       this._tileCacheMaxBytes = 32 * 1024 * 1024;
@@ -246,6 +247,15 @@
     set ZoomPercent(value) { this.zoomPercent = Number(value); }
     get EasingDuration() { return this.easingDuration; }
     set EasingDuration(value) { this.easingDuration = Number(value); }
+
+    setNeighborPrefetch(enabled) {
+      this._neighborPrefetchEnabled = Boolean(enabled);
+      if (this._neighborPrefetchEnabled) return;
+
+      for (const request of this._tilePrefetchQueue)
+        this._tileRequests.delete(request.requestKey);
+      this._tilePrefetchQueue.length = 0;
+    }
 
     zoomOn(x, y, amount = this.zoomPercent, animate = true) {
       if (!this._image || this.isLoading) return;
@@ -475,6 +485,7 @@
     }
 
     _prefetchNeighborTiles(center) {
+      if (!this._neighborPrefetchEnabled) return;
       const imageUrl = this.imageUrl;
       const imageGeneration = this._imageGeneration;
       const requestOptions = {
@@ -510,7 +521,8 @@
     }
 
     _drainTilePrefetchQueue() {
-      while (this._tilePrefetchActive < this._tilePrefetchMaxConcurrent && this._tilePrefetchQueue.length > 0) {
+      while (this._neighborPrefetchEnabled &&
+        this._tilePrefetchActive < this._tilePrefetchMaxConcurrent && this._tilePrefetchQueue.length > 0) {
         const request = this._tilePrefetchQueue.shift();
         if (request.imageGeneration !== this._imageGeneration) {
           this._tileRequests.delete(request.requestKey);
