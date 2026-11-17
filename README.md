@@ -1,61 +1,45 @@
-# ImageZoom
+# ImageZoom — case de produto e reconstrução
 
-ImageZoom is a cross-stack image viewer project. The goal is to keep one clearly defined image zoom experience while building idiomatic implementations for current frontend frameworks and backend languages.
+O ImageZoom começou como uma extensão para Adobe Flash, vendida junto com um backend sob encomenda. Este repositório preserva os artefatos históricos do produto e apresenta uma reconstrução executável da experiência no navegador atual.
 
-## Project direction
+O objetivo é documentar um trabalho de produto e engenharia de outra época: ampliar e navegar imagens dentro de uma área limitada, oferecer uma miniatura navegável e delegar operações de imagem a um serviço. A demo atual é um case de portfólio, não uma oferta de produto nem uma tentativa de competir com serviços modernos de imagens em tiles.
 
-The repository will grow in two directions:
+## O que a demo mostra
 
-- **Frontend components:** Web Components, Angular, React, and Vue.
-- **Image-processing backends:** Node.js, PHP, Ruby, Java, and Python.
+- Visualização em canvas com zoom, arraste, enquadramento inicial e miniatura navegável.
+- Backend ASP.NET Core que informa dimensões e redimensiona ou recorta imagens.
+- Cache em memória para imagens processadas, limitado a 64 MB por processo, com expiração de 24 horas.
+- Cache HTTP com ETag para permitir reutilização pelo navegador e por caches intermediários.
+- Página inicial que apresenta exemplos com imagens de demonstração.
 
-The implementations should share a documented API contract and produce the same observable behavior. Framework adapters should feel natural in their own ecosystems rather than wrapping one framework-specific component.
+A implementação atual usa CreateJS no navegador e SkiaSharp no backend. O código ActionScript original está preservado em `ImageResizer/com/rimisan/ui/`; os arquivos `.fla`, `.swf` e `.swc` guardam materiais históricos do projeto Flash. A demo executável moderna está em `ImageResizer/wwwroot`.
 
-## Current reference implementation
+## Executar localmente
 
-The project currently contains an ASP.NET Core 10 image-processing service and a CreateJS browser viewer. The viewer supports zoom, panning, and a navigator thumbnail; the service provides image information, resize, and crop operations. The legacy ActionScript source is retained under `ImageResizer/com/rimisan/ui/` as the behavioral reference for the original Flash component.
+Requer o .NET 10 SDK.
 
-The current implementation is the starting point for defining the shared contract. The other frontend and backend implementations are planned and have not been added yet.
-
-## Shared behavior to preserve
-
-- Fit the initial image inside the viewport without changing its aspect ratio.
-- Zoom around the selected point and constrain panning to the image bounds.
-- Show a thumbnail with a draggable viewport rectangle.
-- Provide reset, zoom-in, and zoom-out controls.
-- Return image dimensions and resized or cropped image data from the backend.
-- Keep the browser viewer independent from backend language and framework choices.
-
-## Run the current reference
-
-Requires the .NET 10 SDK. From the repository root:
+**Demo ao vivo:** [ImageZoom no Hostinger](https://app.semneurose.com.br/imagezoom/)
 
 ```sh
 dotnet build ImageResizer.sln
 dotnet run --project ImageResizer/ImageResizer.csproj
 ```
 
-Open `/Exemplos/ImageZoom.html` at the local address printed by `dotnet run`. The demo loads CreateJS 1.0.0 from its CDN, so the browser needs internet access.
+Abra o endereço impresso pelo `dotnet run` (por padrão, `http://localhost:5080/`). A página inicial lista as imagens e abre cada uma no visualizador. O CreateJS 1.0.0 é carregado de um CDN, então a demo precisa de internet no navegador.
 
-The old Flash-compatible routes are also available:
+O deploy usa o `Dockerfile` deste repositório e publica a aplicação sob o prefixo `/imagezoom`.
 
-- `/Images/ImageInfo.aspx` and `/Exemplos/images/ImageInfo.aspx`
-- `/Images/Resizer.aspx` and `/Exemplos/images/Resizer.aspx`
+## API legada preservada
 
-Image paths are resolved relative to the endpoint directory and must remain inside `ImageResizer/wwwroot`.
+As rotas compatíveis com o contrato antigo continuam disponíveis:
 
-## Build status
+- `/Images/ImageInfo.aspx` e `/Exemplos/images/ImageInfo.aspx`
+- `/Images/Resizer.aspx` e `/Exemplos/images/Resizer.aspx`
 
-| Area | Current status |
-| --- | --- |
-| ASP.NET Core 10 backend | Reference implementation |
-| CreateJS viewer | Reference demo |
-| Web Component | Planned |
-| Angular component | Planned |
-| React component | Planned |
-| Vue component | Planned |
-| Node.js backend | Planned |
-| PHP backend | Planned |
-| Ruby backend | Planned |
-| Java backend | Planned |
-| Python backend | Planned |
+Os caminhos de imagem são resolvidos dentro de `ImageResizer/wwwroot`.
+
+## Escopo e limites
+
+Esta reconstrução serve para explorar e apresentar o projeto original. O processamento atual decodifica a imagem no backend antes de redimensionar ou recortar; imagens de centenas de megapixels exigiriam outra arquitetura e limites explícitos de memória. Para esse cenário, tiles multirresolução e carregamento sob demanda seriam uma evolução separada, não uma capacidade desta demo.
+
+A demonstração mantém dependências e escolhas técnicas compatíveis com o escopo do case. Não há implementações planejadas de Angular, React, Vue ou outros backends neste repositório.

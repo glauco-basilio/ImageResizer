@@ -1,21 +1,34 @@
 using System.Globalization;
+using Microsoft.Extensions.Caching.Memory;
+using System.Security.Cryptography;
 using System.Xml;
 using SkiaSharp;
 
 var builder = WebApplication.CreateBuilder(args);
+builder.Services.AddMemoryCache(options => options.SizeLimit = 64 * 1024 * 1024);
 var app = builder.Build();
+var imageCache = app.Services.GetRequiredService<IMemoryCache>();
 var contentRoot = Path.GetFullPath(app.Environment.WebRootPath ?? Path.Combine(app.Environment.ContentRootPath, "wwwroot"));
+
+var pathBase = builder.Configuration["AppBasePath"];
+if (!string.IsNullOrWhiteSpace(pathBase))
+    app.UsePathBase(pathBase);
 
 app.UseStaticFiles();
 
-app.MapGet("/Images/Resizer.aspx", (HttpContext context) => ResizeImage(context, contentRoot));
-app.MapGet("/Exemplos/images/Resizer.aspx", (HttpContext context) => ResizeImage(context, contentRoot));
+// Serve the examples home page at the application root.
+app.MapGet("/", (IWebHostEnvironment environment) => Results.File(
+    Path.Combine(environment.WebRootPath ?? Path.Combine(environment.ContentRootPath, "wwwroot"), "index.html"),
+    "text/html; charset=utf-8"));
+
+app.MapGet("/Images/Resizer.aspx", (HttpContext context) => ResizeImage(context, contentRoot, imageCache));
+app.MapGet("/Exemplos/images/Resizer.aspx", (HttpContext context) => ResizeImage(context, contentRoot, imageCache));
 app.MapGet("/Images/ImageInfo.aspx", (HttpContext context) => ImageInfo(context, contentRoot));
 app.MapGet("/Exemplos/images/ImageInfo.aspx", (HttpContext context) => ImageInfo(context, contentRoot));
 
 app.Run();
 
-static IResult ResizeImage(HttpContext context, string contentRoot)
+static IResult ResizeImage(HttpContext context, string contentRoot, IMemoryCache imageCache)
 {
     var relativeFile = context.Request.Query["ImageFileStr"].ToString();
     if (!TryResolveImage(contentRoot, context.Request.Path, relativeFile, out var filePath))
@@ -23,6 +36,24 @@ static IResult ResizeImage(HttpContext context, string contentRoot)
 
     if (!File.Exists(filePath))
         return Results.NotFound();
+
+    var sourceInfo = new FileInfo(filePath);
+    var cacheKey = string.Join('|',
+        Path.GetRelativePath(contentRoot, filePath),
+        sourceInfo.Length.ToString(CultureInfo.InvariantCulture),
+        sourceInfo.LastWriteTimeUtc.Ticks.ToString(CultureInfo.InvariantCulture),
+        context.Request.QueryString.Value ?? string.Empty);
+    var cacheKeyHash = Convert.ToHexString(SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(cacheKey)));
+    var etag = $"\"{cacheKeyHash}\"";
+    context.Response.Headers.ETag = etag;
+    context.Response.Headers.CacheControl = "public, max-age=31536000, immutable";
+    context.Response.Headers.LastModified = sourceInfo.LastWriteTimeUtc.ToString("R", CultureInfo.InvariantCulture);
+
+    if (context.Request.Headers.IfNoneMatch.Any(value => value == "*" || value == etag))
+        return Results.StatusCode(StatusCodes.Status304NotModified);
+
+    if (imageCache.TryGetValue<byte[]>(cacheKeyHash, out var cachedImage))
+        return Results.Bytes(cachedImage!, "image/jpeg");
 
     try
     {
@@ -65,7 +96,13 @@ static IResult ResizeImage(HttpContext context, string contentRoot)
             using var encoded = SKImage.FromBitmap(processedImage);
             using var data = encoded.Encode(SKEncodedImageFormat.Jpeg, 90);
             data.SaveTo(output);
-            return Results.Bytes(output.ToArray(), "image/jpeg");
+            var imageBytes = output.ToArray();
+            imageCache.Set(cacheKeyHash, imageBytes, new MemoryCacheEntryOptions
+            {
+                AbsoluteExpirationRelativeToNow = TimeSpan.FromHours(24),
+                Size = imageBytes.Length
+            });
+            return Results.Bytes(imageBytes, "image/jpeg");
         }
         finally
         {
