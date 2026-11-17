@@ -147,6 +147,7 @@
           const source = leader || viewers.original;
           const follower = source === viewers.original ? viewers.improved : viewers.original;
           follower.syncViewFrom(source, follower === viewers.improved);
+          updateViewerStatus(follower);
         })
         .finally(() => { isResizing = false; });
     });
@@ -156,6 +157,14 @@
       if (!leader) return;
       const follower = leader === viewers.original ? viewers.improved : viewers.original;
       follower.syncViewFrom(leader, requestCrop);
+      updateViewerStatus(follower);
+    }
+
+    function updateViewerStatus(viewer) {
+      const state = viewer.getStatus();
+      const status = document.getElementById(viewer === viewers.original ? "status-original" : "status-prefetch");
+      const text = `${state.width} × ${state.height} · ${state.zoomPercent}%`;
+      if (status.textContent !== text) status.textContent = text;
     }
 
     function runSyncFrame() {
