@@ -12,7 +12,7 @@ O objetivo é documentar um trabalho de produto e engenharia de outra época: am
 - Backend ASP.NET Core que informa dimensões e redimensiona ou recorta imagens.
 - Cache em memória para imagens processadas, limitado a 64 MB por processo, com expiração de 24 horas.
 - Cache HTTP com ETag para permitir reutilização pelo navegador e por caches intermediários.
-- Página inicial que apresenta exemplos com imagens de demonstração.
+- Página inicial com exemplos que abrem em modal e permitem alternar para comparação sincronizada lado a lado.
 
 A implementação atual usa CreateJS no navegador e SkiaSharp no backend. O código ActionScript original está preservado em `ImageResizer/com/rimisan/ui/`; os arquivos `.fla`, `.swf` e `.swc` guardam materiais históricos do projeto Flash. A demo executável moderna está em `ImageResizer/wwwroot`.
 
@@ -25,7 +25,7 @@ dotnet build ImageResizer.sln
 dotnet run --project ImageResizer/ImageResizer.csproj
 ```
 
-Abra o endereço impresso pelo `dotnet run`. A página inicial lista as imagens e abre cada uma no visualizador. O CreateJS 1.0.0 é carregado de um CDN, então a demo precisa de internet no navegador.
+Abra o endereço impresso pelo `dotnet run`. Na home, cada imagem pode ser aberta no visualizador ou comparada lado a lado; o Range é o exemplo sugerido para comparação. O CreateJS 1.0.0 é carregado de um CDN, então a demo precisa de internet no navegador.
 
 No Hostinger, a aplicação roda em um container com o runtime oficial do .NET. O build de produção é feito localmente e enviado ao VPS; binários e credenciais não são armazenados neste repositório.
 

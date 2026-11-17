@@ -80,7 +80,7 @@
   <script src="https://code.createjs.com/1.0.0/createjs.min.js"></script>
   <script src="../js/image-zoom.js?v=neighbor-prefetch-compare-1"></script>
   <script>
-    const image = new URLSearchParams(location.search).get("image") || "images/Cambio.jpg";
+    const image = new URLSearchParams(location.search).get("image") || "images/range.jpg";
 
     function progressHandler(prefix) {
       let latestRequest = 0;
@@ -175,6 +175,7 @@
     document.getElementById("neighbor-prefetch").addEventListener("change", event => {
       viewers.improved.setNeighborPrefetch(event.target.checked);
     });
+    if (new URLSearchParams(location.search).has("modal")) document.querySelector(".back").hidden = true;
   </script>
 </body>
 </html>
