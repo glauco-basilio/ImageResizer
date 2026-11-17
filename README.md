@@ -27,6 +27,8 @@ dotnet run --project ImageResizer/ImageResizer.csproj
 
 Abra o endereço impresso pelo `dotnet run`. Na home, cada imagem pode ser aberta no visualizador ou comparada lado a lado; o Range é o exemplo sugerido para comparação. O CreateJS 1.0.0 é carregado de um CDN, então a demo precisa de internet no navegador.
 
+No VS Code, instale as extensões recomendadas e pressione F5 para compilar e iniciar o projeto com o depurador.
+
 No Hostinger, a aplicação roda em um container com o runtime oficial do .NET. O build de produção é feito localmente e enviado ao VPS; binários e credenciais não são armazenados neste repositório.
 
 ## API legada preservada

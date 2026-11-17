@@ -9,7 +9,12 @@
 # IDE and operating system files
 .idea/
 .vs/
-.vscode/
+# VS Code workspace configuration is shared with the project.
+.vscode/*
+!.vscode/extensions.json
+!.vscode/launch.json
+!.vscode/settings.json
+!.vscode/tasks.json
 .DS_Store
 *.suo
 *.user
