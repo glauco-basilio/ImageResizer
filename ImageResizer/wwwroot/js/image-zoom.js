@@ -46,6 +46,15 @@
       this._onChange = options.onChange || function () {};
       this._onProgress = options.onProgress || function () {};
       this._progressRequestId = 0;
+      this._tileCache = new Map();
+      this._tileCacheBytes = 0;
+      this._tileCacheMaxBytes = 32 * 1024 * 1024;
+      this._tileRequests = new Set();
+      this._tilePrefetchQueue = [];
+      this._tilePrefetchActive = 0;
+      this._tilePrefetchMaxConcurrent = 3;
+      this._imageGeneration = 0;
+      this._visibleTileBitmaps = new Map();
 
       this.canvas.width = this.viewportWidth;
       this.canvas.height = this.viewportHeight;
@@ -88,6 +97,14 @@
 
     async setImage(url) {
       this.imageUrl = url;
+      this._imageGeneration += 1;
+      this._tileCache.clear();
+      this._tileCacheBytes = 0;
+      this._tileRequests.clear();
+      this._tilePrefetchQueue.length = 0;
+      this.cropContent.removeAllChildren();
+      this._visibleTileBitmaps.clear();
+      this.cropContent.visible = false;
       this.isLoading = true;
       this.cropContent.visible = false;
       const loadToken = ++this._loadToken;
@@ -156,15 +173,17 @@
       }
     }
 
-    async _fetchImage(action, parameters) {
-      const url = new URL(this._resizerUrl);
+    async _fetchImage(action, parameters, options = {}) {
+      const url = new URL(options.resizerUrl || this._resizerUrl);
       url.searchParams.set("Action", action);
-      url.searchParams.set("ImageFileStr", this._fileName);
+      url.searchParams.set("ImageFileStr", options.fileName || this._fileName);
       Object.entries(parameters).forEach(([key, value]) => url.searchParams.set(key, String(value)));
-      const requestId = ++this._progressRequestId;
+      const reportProgress = options.reportProgress !== false;
+      const requestId = reportProgress ? ++this._progressRequestId : 0;
       let objectUrl;
       try {
-        this._onProgress({ requestId, active: true, percent: 0, indeterminate: true, action });
+        if (reportProgress)
+          this._onProgress({ requestId, active: true, percent: 0, indeterminate: true, action });
         const response = await fetch(url);
         if (!response.ok) throw new Error(`Resizer.aspx returned HTTP ${response.status}.`);
         const total = Number(response.headers.get("content-length"));
@@ -178,13 +197,15 @@
             if (done) break;
             chunks.push(value);
             received += value.byteLength;
-            this._onProgress({
-              requestId,
-              active: true,
-              percent: total > 0 ? Math.min(100, Math.round(received * 100 / total)) : 0,
-              indeterminate: !(total > 0),
-              action
-            });
+            if (reportProgress) {
+              this._onProgress({
+                requestId,
+                active: true,
+                percent: total > 0 ? Math.min(100, Math.round(received * 100 / total)) : 0,
+                indeterminate: !(total > 0),
+                action
+              });
+            }
           }
           blob = new Blob(chunks, { type: response.headers.get("content-type") || "image/jpeg" });
         } else {
@@ -199,7 +220,8 @@
         });
       } finally {
         if (objectUrl) URL.revokeObjectURL(objectUrl);
-        this._onProgress({ requestId, active: false, percent: 100, indeterminate: false, action });
+        if (reportProgress)
+          this._onProgress({ requestId, active: false, percent: 100, indeterminate: false, action });
       }
     }
 
@@ -282,6 +304,13 @@
     }
 
     destroy() {
+      this._imageGeneration += 1;
+      this._tileCache.clear();
+      this._tileRequests.clear();
+      this._tilePrefetchQueue.length = 0;
+      this._tileCacheBytes = 0;
+      this.cropContent.removeAllChildren();
+      this._visibleTileBitmaps.clear();
       createjs.Ticker.removeEventListener("tick", this.stage);
       createjs.Ticker.removeEventListener("tick", this._onTick);
       this.stage.off("stagemousedown", this._onStageDown);
@@ -331,25 +360,177 @@
     async _requestCrop() {
       if (!this._image || this.isLoading || !this._resizerUrl) return;
       const cropToken = ++this._cropToken;
-      this.cropContent.visible = false;
+      const imageGeneration = this._imageGeneration;
+      const parameters = this._currentCropParameters();
+      const cachedTile = this._getCachedTile(parameters);
+      if (cachedTile) {
+        this._renderCachedTilesForView();
+        this._prefetchNeighborTiles(parameters);
+        return;
+      }
+
       try {
-        const crop = await this._fetchImage("Crop", {
-          w: Math.max(1, Math.round(this._displayWidth * this.zoom)),
-          h: Math.max(1, Math.round(this._displayHeight * this.zoom)),
-          wP: this.viewportWidth,
-          hP: this.viewportHeight,
-          x: Math.round(-this.content.x),
-          y: Math.round(-this.content.y)
-        });
+        const crop = await this._fetchImage("Crop", parameters);
+        if (imageGeneration !== this._imageGeneration) return;
+        this._cacheTile(parameters, crop);
         if (cropToken !== this._cropToken) return;
-        this.cropBitmap.image = crop;
-        this.cropBitmap.setTransform(0, 0, 1, 1);
-        this.cropContent.x = 0;
-        this.cropContent.y = 0;
-        this.cropContent.scaleX = this.cropContent.scaleY = 1;
-        this.cropContent.visible = true;
+        this._renderCachedTilesForView();
+        this._prefetchNeighborTiles(parameters);
       } catch (error) {
         if (cropToken === this._cropToken) this._onError(error);
+      }
+    }
+
+    _currentCropParameters() {
+      return {
+        w: Math.max(1, Math.round(this._displayWidth * this.zoom)),
+        h: Math.max(1, Math.round(this._displayHeight * this.zoom)),
+        wP: this.viewportWidth,
+        hP: this.viewportHeight,
+        x: Math.round(-this.content.x),
+        y: Math.round(-this.content.y)
+      };
+    }
+
+    _tileBaseKey(parameters, imageUrl = this.imageUrl) {
+      return [imageUrl, parameters.w, parameters.h, parameters.wP, parameters.hP].join("|");
+    }
+
+    _tileKey(parameters, imageUrl = this.imageUrl) {
+      return `${this._tileBaseKey(parameters, imageUrl)}|${parameters.x}|${parameters.y}`;
+    }
+
+    _getCachedTile(parameters) {
+      const key = this._tileKey(parameters);
+      const tile = this._tileCache.get(key);
+      if (!tile) return null;
+      this._tileCache.delete(key);
+      this._tileCache.set(key, tile);
+      return tile;
+    }
+
+    _cacheTile(parameters, image, imageUrl = this.imageUrl) {
+      const key = this._tileKey(parameters, imageUrl);
+      const existing = this._tileCache.get(key);
+      if (existing) {
+        this._tileCacheBytes -= existing.bytes;
+        this._tileCache.delete(key);
+      }
+
+      const bytes = image.naturalWidth * image.naturalHeight * 4;
+      if (bytes > this._tileCacheMaxBytes) return;
+      this._tileCache.set(key, {
+        key,
+        baseKey: this._tileBaseKey(parameters, imageUrl),
+        x: parameters.x,
+        y: parameters.y,
+        image,
+        bytes
+      });
+      this._tileCacheBytes += bytes;
+
+      while (this._tileCacheBytes > this._tileCacheMaxBytes) {
+        const oldestKey = this._tileCache.keys().next().value;
+        const oldest = this._tileCache.get(oldestKey);
+        this._tileCache.delete(oldestKey);
+        this._tileCacheBytes -= oldest.bytes;
+      }
+    }
+
+    _renderCachedTilesForView() {
+      if (!this._image || !this._resizerUrl) return;
+      const view = this._currentCropParameters();
+      const baseKey = this._tileBaseKey(view);
+      const viewRight = view.x + view.wP;
+      const viewBottom = view.y + view.hP;
+      const visibleTiles = new Map();
+
+      for (const tile of this._tileCache.values()) {
+        if (tile.baseKey !== baseKey ||
+          tile.x >= viewRight || tile.x + view.wP <= view.x ||
+          tile.y >= viewBottom || tile.y + view.hP <= view.y) continue;
+
+        let bitmap = this._visibleTileBitmaps.get(tile.key);
+        if (bitmap && bitmap.image !== tile.image) {
+          this.cropContent.removeChild(bitmap);
+          bitmap = null;
+        }
+        if (!bitmap) {
+          bitmap = new createjs.Bitmap(tile.image);
+          this.cropContent.addChild(bitmap);
+        }
+        bitmap.x = tile.x - view.x;
+        bitmap.y = tile.y - view.y;
+        visibleTiles.set(tile.key, bitmap);
+      }
+
+      for (const [key, bitmap] of this._visibleTileBitmaps) {
+        if (!visibleTiles.has(key)) this.cropContent.removeChild(bitmap);
+      }
+      this._visibleTileBitmaps = visibleTiles;
+      this.cropContent.x = 0;
+      this.cropContent.y = 0;
+      this.cropContent.scaleX = this.cropContent.scaleY = 1;
+      this.cropContent.visible = this.cropContent.numChildren > 0;
+    }
+
+    _prefetchNeighborTiles(center) {
+      const imageUrl = this.imageUrl;
+      const imageGeneration = this._imageGeneration;
+      const requestOptions = {
+        fileName: this._fileName,
+        resizerUrl: this._resizerUrl,
+        reportProgress: false
+      };
+      const offsets = [];
+      for (let row = -1; row <= 1; row += 1) {
+        for (let column = -1; column <= 1; column += 1) {
+          if (row === 0 && column === 0) continue;
+          offsets.push({ x: column * center.wP, y: row * center.hP });
+        }
+      }
+
+      const neighbors = offsets
+        .map(offset => ({ ...center, x: center.x + offset.x, y: center.y + offset.y }))
+        .filter(tile => tile.x + tile.wP > 0 && tile.y + tile.hP > 0 && tile.x < tile.w && tile.y < tile.h)
+        .map(tile => {
+          const key = this._tileKey(tile, imageUrl);
+          return { tile, key, requestKey: `${imageGeneration}|${key}` };
+        })
+        .filter(item => !this._tileCache.has(item.key) && !this._tileRequests.has(item.requestKey));
+      neighbors.forEach(item => this._tileRequests.add(item.requestKey));
+      this._tilePrefetchQueue.push(...neighbors.map(item => ({
+        ...item,
+        imageUrl,
+        imageGeneration,
+        requestOptions
+      })));
+      this._drainTilePrefetchQueue();
+    }
+
+    _drainTilePrefetchQueue() {
+      while (this._tilePrefetchActive < this._tilePrefetchMaxConcurrent && this._tilePrefetchQueue.length > 0) {
+        const request = this._tilePrefetchQueue.shift();
+        if (request.imageGeneration !== this._imageGeneration) {
+          this._tileRequests.delete(request.requestKey);
+          continue;
+        }
+
+        this._tilePrefetchActive += 1;
+        this._fetchImage("Crop", request.tile, request.requestOptions)
+          .then(image => {
+            if (request.imageGeneration !== this._imageGeneration) return;
+            this._cacheTile(request.tile, image, request.imageUrl);
+            this._renderCachedTilesForView();
+          })
+          .catch(() => {
+            // Neighbor tiles are an optimization; the low-resolution preview remains usable.
+          })
+          .finally(() => {
+            this._tilePrefetchActive -= 1;
+            this._tileRequests.delete(request.requestKey);
+            this._drainTilePrefetchQueue();
+          });
       }
     }
 
@@ -370,7 +551,6 @@
       const dy = event.stageY - this._drag.startY;
       if (Math.abs(dx) + Math.abs(dy) > 3) this._drag.moved = true;
       if (!this._drag.moved) return;
-      this.cropContent.visible = false;
       this._cropToken += 1;
       const position = this._clampPosition(
         this._drag.imageX + dx,
@@ -379,6 +559,7 @@
       );
       this.content.x = position.x;
       this.content.y = position.y;
+      this._renderCachedTilesForView();
       this._syncNavigator();
     }
 

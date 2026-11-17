@@ -38,6 +38,12 @@ As rotas compatíveis com o contrato antigo continuam disponíveis:
 
 Os caminhos de imagem são resolvidos dentro de `ImageResizer/wwwroot`.
 
+## Experimento: pré-carregamento de tiles vizinhos
+
+O branch `experiment/neighbor-tile-prefetch` explora a preparação dos oito recortes ao redor da área atual. Depois que o recorte solicitado chega, o navegador busca os vizinhos em segundo plano, com até três requisições simultâneas. Tiles prontos são posicionados imediatamente durante o arraste; onde ainda não há tile, continua aparecendo a prévia de baixa resolução até o próximo recorte ficar pronto. O cache de tiles no navegador é limitado a 32 MB, além do cache de respostas existente no backend.
+
+Para experimentar, faça checkout desse branch, rode a aplicação como descrito acima, amplie uma imagem e arraste a área visível. O branch não altera a demo publicada no `main`.
+
 ## Escopo e limites
 
 Esta reconstrução serve para explorar e apresentar o projeto original. O processamento atual decodifica a imagem no backend antes de redimensionar ou recortar; imagens de centenas de megapixels exigiriam outra arquitetura e limites explícitos de memória. Para esse cenário, tiles multirresolução e carregamento sob demanda seriam uma evolução separada, não uma capacidade desta demo.
