@@ -229,7 +229,7 @@
     resize(width, height) {
       const nextWidth = Math.max(1, Math.round(width));
       const nextHeight = Math.max(1, Math.round(height));
-      if (nextWidth === this.viewportWidth && nextHeight === this.viewportHeight) return;
+      if (nextWidth === this.viewportWidth && nextHeight === this.viewportHeight) return Promise.resolve();
       const currentScale = this.content.scaleX || this.zoom;
       const previousCenter = this._image && currentScale > 1
         ? {
@@ -248,7 +248,7 @@
         .drawRect(0, 0, this.viewportWidth, this.viewportHeight);
       this.cropMask.graphics.clear().beginFill("#000")
         .drawRect(0, 0, this.viewportWidth, this.viewportHeight);
-      this.setImage(imageUrl).then(() => {
+      return this.setImage(imageUrl).then(() => {
         if (!previousCenter || nextLoadToken !== this._loadToken || !this._image) return;
         this.zoom = previousCenter.zoom;
         this.centerOn(previousCenter.x, previousCenter.y, false);
@@ -291,6 +291,16 @@
       this._renderCachedTilesForView();
       this._syncNavigator();
       if (requestCrop) this._requestCrop();
+    }
+
+    syncViewFrom(source, requestCrop = false) {
+      if (!source?._image || !this._image || this.isLoading) return;
+      const scale = source.content.scaleX || source.zoom;
+      const imageX = (source.viewportWidth / 2 - source.content.x) / (source._baseScaleX * scale);
+      const imageY = (source.viewportHeight / 2 - source.content.y) / (source._baseScaleY * scale);
+      const x = this.viewportWidth / 2 - imageX * this._baseScaleX * scale;
+      const y = this.viewportHeight / 2 - imageY * this._baseScaleY * scale;
+      this.syncView(scale, x, y, requestCrop);
     }
 
     zoomOn(x, y, amount = this.zoomPercent, animate = true) {

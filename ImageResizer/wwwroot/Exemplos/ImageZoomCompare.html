@@ -78,7 +78,7 @@
     <a class="back" href="../">← Voltar aos exemplos</a>
   </main>
   <script src="https://code.createjs.com/1.0.0/createjs.min.js"></script>
-  <script src="../js/image-zoom.js?v=neighbor-prefetch-wide-1"></script>
+  <script src="../js/image-zoom.js?v=neighbor-prefetch-wide-2"></script>
   <script>
     const image = new URLSearchParams(location.search).get("image") || "images/range.jpg";
 
@@ -95,6 +95,11 @@
         bar.setAttribute("aria-valuenow", String(percent));
       };
     }
+
+    let isResizing = false;
+    let leader = null;
+    let syncFrame = 0;
+    let syncUntil = 0;
 
     function createViewer(prefix, neighborPrefetch) {
       const status = document.getElementById(`status-${prefix}`);
@@ -114,30 +119,52 @@
         onChange: ({ width, height, zoomPercent }) => { status.textContent = `${width} × ${height} · ${zoomPercent}%`; },
         onProgress: progressHandler(prefix)
       });
-      viewer._layoutObserver = new ResizeObserver(([entry]) => {
-        const width = Math.round(entry.contentRect.width);
-        const height = Math.round(entry.contentRect.height);
-        if (width > 0 && height > 0 && (width !== viewer.width || height !== viewer.height))
-          viewer.resize(width, height);
-      });
-      viewer._layoutObserver.observe(frame);
       return viewer;
     }
 
     const viewers = { original: createViewer("original", false), improved: createViewer("prefetch", true) };
-    let leader = null;
-    let syncFrame = 0;
-    let syncUntil = 0;
+    const viewerFrames = new Map([
+      [viewers.original.canvas.closest(".viewer-frame"), viewers.original],
+      [viewers.improved.canvas.closest(".viewer-frame"), viewers.improved]
+    ]);
+    const resizeObserver = new ResizeObserver(entries => {
+      if (isResizing) return;
+      const changed = entries.some(entry => {
+        const viewer = viewerFrames.get(entry.target);
+        return viewer && (Math.round(entry.contentRect.width) !== viewer.width ||
+          Math.round(entry.contentRect.height) !== viewer.height);
+      });
+      if (!changed) return;
+
+      isResizing = true;
+      const sizes = [...viewerFrames].map(([frame, viewer]) => ({
+        viewer,
+        width: Math.round(frame.clientWidth),
+        height: Math.round(frame.clientHeight)
+      }));
+      Promise.all(sizes.map(({ viewer, width, height }) => viewer.resize(width, height)))
+        .then(() => {
+          const source = leader || viewers.original;
+          const follower = source === viewers.original ? viewers.improved : viewers.original;
+          follower.syncViewFrom(source, follower === viewers.improved);
+        })
+        .finally(() => { isResizing = false; });
+    });
+    for (const frame of viewerFrames.keys()) resizeObserver.observe(frame);
 
     function syncFollower(requestCrop = false) {
       if (!leader) return;
       const follower = leader === viewers.original ? viewers.improved : viewers.original;
-      follower.syncView(leader.content.scaleX || leader.zoom, leader.content.x, leader.content.y, requestCrop);
+      follower.syncViewFrom(leader, requestCrop);
     }
 
     function runSyncFrame() {
       syncFrame = 0;
       if (!leader) return;
+      if (isResizing) {
+        if (performance.now() < syncUntil) syncFrame = requestAnimationFrame(runSyncFrame);
+        return;
+      }
       syncFollower(false);
       if (performance.now() < syncUntil) syncFrame = requestAnimationFrame(runSyncFrame);
     }
@@ -167,6 +194,7 @@
       viewer._onChange = state => {
         const status = document.getElementById(viewer === viewers.original ? "status-original" : "status-prefetch");
         status.textContent = `${state.width} × ${state.height} · ${state.zoomPercent}%`;
+        if (isResizing) return;
         markLeader(viewer, 350);
         syncFollower(true);
       };
