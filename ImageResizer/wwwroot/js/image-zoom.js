@@ -250,7 +250,11 @@
 
     setNeighborPrefetch(enabled) {
       this._neighborPrefetchEnabled = Boolean(enabled);
-      if (this._neighborPrefetchEnabled) return;
+      if (this._neighborPrefetchEnabled) {
+        if (this._image && !this.isLoading && this.zoom > 1)
+          this._prefetchNeighborTiles(this._currentCropParameters());
+        return;
+      }
 
       for (const request of this._tilePrefetchQueue)
         this._tileRequests.delete(request.requestKey);
