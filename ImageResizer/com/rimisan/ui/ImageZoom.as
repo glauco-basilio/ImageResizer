@@ -25,7 +25,7 @@ class com.rimisan.ui.ImageZoom extends MovieClip{
 
 		private var _image:String;
 		private var boudingBox_txt:TextField;
-		[Inspectable(defaultValue="http://localhost/ImageZoom/Images/1.jpg")]
+		[Inspectable(defaultValue="../Images/1.jpg")]
 		public function set Image(str:String):String{
 			_image = str;
 			if(content_mc){

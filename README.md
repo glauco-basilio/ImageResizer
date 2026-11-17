@@ -25,7 +25,7 @@ dotnet build ImageResizer.sln
 dotnet run --project ImageResizer/ImageResizer.csproj
 ```
 
-Abra o endereço impresso pelo `dotnet run` (por padrão, `http://localhost:5080/`). A página inicial lista as imagens e abre cada uma no visualizador. O CreateJS 1.0.0 é carregado de um CDN, então a demo precisa de internet no navegador.
+Abra o endereço impresso pelo `dotnet run`. A página inicial lista as imagens e abre cada uma no visualizador. O CreateJS 1.0.0 é carregado de um CDN, então a demo precisa de internet no navegador.
 
 No Hostinger, a aplicação roda em um container com o runtime oficial do .NET. O build de produção é feito localmente e enviado ao VPS; binários e credenciais não são armazenados neste repositório.
 
