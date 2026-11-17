@@ -8,7 +8,7 @@
     :root { color-scheme: light; font: 15px/1.45 system-ui, sans-serif; color: #172536; background: #f1f6fa; }
     * { box-sizing: border-box; }
     body { min-width: 320px; min-height: 100vh; margin: 0; padding: 28px; }
-    main { width: min(100%, 1840px); margin: auto; }
+    main { width: min(100%, 3360px); margin: auto; }
     h1 { margin: 0; font-size: clamp(25px, 4vw, 38px); letter-spacing: -.035em; }
     .intro { margin: 8px 0 20px; color: #526579; }
     .controls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 18px; }
@@ -98,8 +98,12 @@
 
     function createViewer(prefix, neighborPrefetch) {
       const status = document.getElementById(`status-${prefix}`);
-      return new ImageZoom({
-        canvas: document.getElementById(prefix === "original" ? "viewer-original" : "viewer-prefetch"),
+      const canvas = document.getElementById(prefix === "original" ? "viewer-original" : "viewer-prefetch");
+      const frame = canvas.closest(".viewer-frame");
+      canvas.width = Math.max(1, Math.round(frame.clientWidth));
+      canvas.height = Math.max(1, Math.round(frame.clientHeight));
+      const viewer = new ImageZoom({
+        canvas,
         navigatorCanvas: document.getElementById(prefix === "original" ? "navigator-original" : "navigator-prefetch"),
         image,
         neighborPrefetch,
@@ -110,6 +114,14 @@
         onChange: ({ width, height, zoomPercent }) => { status.textContent = `${width} × ${height} · ${zoomPercent}%`; },
         onProgress: progressHandler(prefix)
       });
+      viewer._layoutObserver = new ResizeObserver(([entry]) => {
+        const width = Math.round(entry.contentRect.width);
+        const height = Math.round(entry.contentRect.height);
+        if (width > 0 && height > 0 && (width !== viewer.width || height !== viewer.height))
+          viewer.resize(width, height);
+      });
+      viewer._layoutObserver.observe(frame);
+      return viewer;
     }
 
     const viewers = { original: createViewer("original", false), improved: createViewer("prefetch", true) };
