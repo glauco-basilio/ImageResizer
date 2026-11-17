@@ -21,7 +21,6 @@
       background: #aedafa;
     }
     .app { width: min(100%, 1560px, calc((100dvh - 190px) * 1.56)); }
-    .viewer-layout { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; }
     .viewer-frame {
       position: relative;
       width: 100%;
@@ -42,17 +41,14 @@
       cursor: grab;
     }
     #viewer:active { cursor: grabbing; }
-    .viewer-tools {
-      display: flex;
-      flex-wrap: wrap;
-      align-items: center;
-      justify-content: space-between;
-      gap: 12px 24px;
-    }
     .corner-tools {
+      position: absolute;
+      z-index: 2;
+      left: 2px;
+      bottom: 20px;
       display: flex;
       align-items: flex-end;
-      gap: 8px;
+      gap: 6px;
     }
     .navigator-panel {
       position: relative;
@@ -144,48 +140,30 @@
       to { transform: translateX(195%); }
     }
     .help {
-      max-width: 480px;
-      margin: 0;
+      margin: 10px 2px 0;
       color: #31536c;
       font-size: 13px;
+      text-align: center;
     }
     .prefetch-option {
       display: flex;
+      justify-content: center;
       align-items: flex-start;
       gap: 9px;
-      margin: 0;
+      margin: 18px 0 0;
       color: #18283b;
       font-size: 14px;
       font-weight: 650;
       cursor: pointer;
     }
     .prefetch-option input { width: 18px; height: 18px; margin: 2px 0 0; accent-color: #1769aa; }
-    .prefetch-description { max-width: 480px; margin: 5px 0 0; color: #5a6c7f; font-size: 12px; }
-    body.modal-embed { padding: 8px; }
-    body.modal-embed .app { width: min(100%, 1560px, calc((100dvh - 180px) * 1.56)); }
-    @media (min-width: 1800px) {
-      body { padding: 18px; }
-      .app { width: min(100%, 3360px); height: min(calc(100dvh - 36px), 1360px); }
-      body.modal-embed .app { height: min(calc(100dvh - 20px), 1360px); }
-      .viewer-layout { grid-template-columns: minmax(0, 1fr) minmax(300px, 380px); grid-template-rows: minmax(0, 1fr); gap: 18px; height: 100%; }
-      .viewer-frame { height: 100%; aspect-ratio: auto; border-width: 20px; border-radius: 18px; }
-      .viewer-tools { display: grid; align-content: center; justify-content: stretch; gap: 28px; padding: 28px; border: 1px solid #c5dff0; border-radius: 18px; background: rgb(255 255 255 / 76%); box-shadow: 0 12px 30px rgb(32 78 112 / 10%); }
-      .corner-tools { align-items: flex-start; flex-direction: column; gap: 18px; }
-      .navigator-panel { padding: 5px; border-width: 3px; }
-      #navigator { width: 220px; height: 150px; }
-      .zoom-controls { flex-direction: row; gap: 8px; }
-      .zoom-controls button { width: 46px; height: 44px; font-size: 26px; }
-      .help { max-width: none; font-size: 15px; }
-      .prefetch-description { max-width: none; line-height: 1.55; }
-      #status { top: 12px; right: 14px; padding: 5px 8px; font-size: 14px; }
-      .progress-indicator { width: 130px; height: 9px; }
-    }
+    .prefetch-description { max-width: 620px; margin: 5px auto 0; color: #5a6c7f; font-size: 12px; text-align: center; }
+    body.modal-embed .app { width: min(100%, 1560px, calc((100dvh - 125px) * 1.56)); }
     @media (max-width: 520px) {
       body { padding: 12px; }
       .app { width: 100%; }
       .viewer-frame { border-width: 12px; }
-      .viewer-tools { display: grid; justify-content: stretch; }
-      .corner-tools { gap: 4px; }
+      .corner-tools { left: 0; bottom: 15px; gap: 4px; }
       .navigator-panel { padding: 2px; border-width: 2px; }
       .navigator-title { font-size: 15px; }
       #navigator { width: 95px; height: 65px; }
@@ -200,16 +178,9 @@
 </head>
 <body>
   <main class="app">
-    <section class="viewer-layout" aria-label="Visualizador ImageZoom">
-      <div class="viewer-frame">
-        <canvas id="viewer" width="800" height="500" aria-label="Visualizador de imagem"></canvas>
-        <span id="status" aria-live="polite">Carregando…</span>
-        <div id="progress" class="progress-indicator" role="progressbar" aria-label="Progresso do carregamento" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
-          <div id="progress-fill" class="progress-fill"></div>
-        </div>
-      </div>
-      <aside class="viewer-tools" aria-label="Controles e informações do visualizador">
-        <div class="corner-tools">
+    <section class="viewer-frame" aria-label="ImageZoom">
+      <canvas id="viewer" width="800" height="500" aria-label="Visualizador de imagem"></canvas>
+      <div class="corner-tools">
         <div class="navigator-panel">
           <p class="navigator-title">IZ Navigator</p>
           <canvas id="navigator" width="190" height="130" aria-label="Miniatura e área visível"></canvas>
@@ -219,20 +190,21 @@
           <button id="zoom-out" type="button" title="Reduzir" aria-label="Reduzir">−</button>
           <button id="reset" type="button" title="Enquadramento original" aria-label="Voltar ao enquadramento original">↻</button>
         </div>
-        </div>
-        <p class="help">Clique ou use + para ampliar; arraste a imagem para mover. No navegador, arraste o quadro para selecionar a área.</p>
-        <div>
-          <label class="prefetch-option" for="neighbor-prefetch">
-            <input id="neighbor-prefetch" type="checkbox">
-            <span>Pré-carregar os recortes vizinhos</span>
-          </label>
-          <p class="prefetch-description">Ao ativar, já busca as áreas próximas à visão ampliada atual; depois de cada recorte, prepara até oito vizinhos em segundo plano. Os que estiverem prontos aparecem durante o arraste.</p>
-        </div>
-      </aside>
+      </div>
+      <span id="status" aria-live="polite">Carregando…</span>
+      <div id="progress" class="progress-indicator" role="progressbar" aria-label="Progresso do carregamento" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+        <div id="progress-fill" class="progress-fill"></div>
+      </div>
     </section>
+    <p class="help">Clique ou use + para ampliar; arraste a imagem para mover. No navegador, arraste o quadro para selecionar a área.</p>
+    <label class="prefetch-option" for="neighbor-prefetch">
+      <input id="neighbor-prefetch" type="checkbox">
+      <span>Pré-carregar os recortes vizinhos</span>
+    </label>
+    <p class="prefetch-description">Ao ativar, já busca as áreas próximas à visão ampliada atual; depois de cada recorte, prepara até oito vizinhos em segundo plano. Os que estiverem prontos aparecem durante o arraste.</p>
   </main>
   <script src="https://code.createjs.com/1.0.0/createjs.min.js"></script>
-  <script src="../js/image-zoom.js?v=neighbor-prefetch-wide-3"></script>
+  <script src="../js/image-zoom.js?v=neighbor-prefetch-wide-1"></script>
   <script>
     const status = document.getElementById("status");
     const progress = document.getElementById("progress");

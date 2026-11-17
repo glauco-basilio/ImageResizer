@@ -8,7 +8,7 @@
     :root { color-scheme: light; font: 15px/1.45 system-ui, sans-serif; color: #172536; background: #f1f6fa; }
     * { box-sizing: border-box; }
     body { min-width: 320px; min-height: 100vh; margin: 0; padding: 28px; }
-    main { width: min(100%, 3360px); margin: auto; }
+    main { width: min(100%, 1840px); margin: auto; }
     h1 { margin: 0; font-size: clamp(25px, 4vw, 38px); letter-spacing: -.035em; }
     .intro { margin: 8px 0 20px; color: #526579; }
     .controls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 18px; }
@@ -78,7 +78,7 @@
     <a class="back" href="../">← Voltar aos exemplos</a>
   </main>
   <script src="https://code.createjs.com/1.0.0/createjs.min.js"></script>
-  <script src="../js/image-zoom.js?v=neighbor-prefetch-wide-3"></script>
+  <script src="../js/image-zoom.js?v=neighbor-prefetch-wide-1"></script>
   <script>
     const image = new URLSearchParams(location.search).get("image") || "images/range.jpg";
 
@@ -96,19 +96,10 @@
       };
     }
 
-    let isResizing = false;
-    let leader = null;
-    let syncFrame = 0;
-    let syncUntil = 0;
-
     function createViewer(prefix, neighborPrefetch) {
       const status = document.getElementById(`status-${prefix}`);
-      const canvas = document.getElementById(prefix === "original" ? "viewer-original" : "viewer-prefetch");
-      const frame = canvas.closest(".viewer-frame");
-      canvas.width = Math.max(1, Math.round(frame.clientWidth));
-      canvas.height = Math.max(1, Math.round(frame.clientHeight));
-      const viewer = new ImageZoom({
-        canvas,
+      return new ImageZoom({
+        canvas: document.getElementById(prefix === "original" ? "viewer-original" : "viewer-prefetch"),
         navigatorCanvas: document.getElementById(prefix === "original" ? "navigator-original" : "navigator-prefetch"),
         image,
         neighborPrefetch,
@@ -119,61 +110,22 @@
         onChange: ({ width, height, zoomPercent }) => { status.textContent = `${width} × ${height} · ${zoomPercent}%`; },
         onProgress: progressHandler(prefix)
       });
-      return viewer;
     }
 
     const viewers = { original: createViewer("original", false), improved: createViewer("prefetch", true) };
-    const viewerFrames = new Map([
-      [viewers.original.canvas.closest(".viewer-frame"), viewers.original],
-      [viewers.improved.canvas.closest(".viewer-frame"), viewers.improved]
-    ]);
-    const resizeObserver = new ResizeObserver(entries => {
-      if (isResizing) return;
-      const changed = entries.some(entry => {
-        const viewer = viewerFrames.get(entry.target);
-        return viewer && (Math.round(entry.contentRect.width) !== viewer.width ||
-          Math.round(entry.contentRect.height) !== viewer.height);
-      });
-      if (!changed) return;
-
-      isResizing = true;
-      const sizes = [...viewerFrames].map(([frame, viewer]) => ({
-        viewer,
-        width: Math.round(frame.clientWidth),
-        height: Math.round(frame.clientHeight)
-      }));
-      Promise.all(sizes.map(({ viewer, width, height }) => viewer.resize(width, height)))
-        .then(() => {
-          const source = leader || viewers.original;
-          const follower = source === viewers.original ? viewers.improved : viewers.original;
-          follower.syncViewFrom(source, follower === viewers.improved);
-          updateViewerStatus(follower);
-        })
-        .finally(() => { isResizing = false; });
-    });
-    for (const frame of viewerFrames.keys()) resizeObserver.observe(frame);
+    let leader = null;
+    let syncFrame = 0;
+    let syncUntil = 0;
 
     function syncFollower(requestCrop = false) {
       if (!leader) return;
       const follower = leader === viewers.original ? viewers.improved : viewers.original;
-      follower.syncViewFrom(leader, requestCrop);
-      updateViewerStatus(follower);
-    }
-
-    function updateViewerStatus(viewer) {
-      const state = viewer.getStatus();
-      const status = document.getElementById(viewer === viewers.original ? "status-original" : "status-prefetch");
-      const text = `${state.width} × ${state.height} · ${state.zoomPercent}%`;
-      if (status.textContent !== text) status.textContent = text;
+      follower.syncView(leader.content.scaleX || leader.zoom, leader.content.x, leader.content.y, requestCrop);
     }
 
     function runSyncFrame() {
       syncFrame = 0;
       if (!leader) return;
-      if (isResizing) {
-        if (performance.now() < syncUntil) syncFrame = requestAnimationFrame(runSyncFrame);
-        return;
-      }
       syncFollower(false);
       if (performance.now() < syncUntil) syncFrame = requestAnimationFrame(runSyncFrame);
     }
@@ -194,11 +146,15 @@
       navigatorCanvas.addEventListener("pointermove", event => { if (event.buttons) markLeader(viewer, 100); });
     }
 
+    window.addEventListener("pointerup", () => {
+      if (!leader) return;
+      markLeader(leader, 350);
+      syncFollower(true);
+    });
     for (const viewer of Object.values(viewers)) {
       viewer._onChange = state => {
         const status = document.getElementById(viewer === viewers.original ? "status-original" : "status-prefetch");
         status.textContent = `${state.width} × ${state.height} · ${state.zoomPercent}%`;
-        if (isResizing) return;
         markLeader(viewer, 350);
         syncFollower(true);
       };

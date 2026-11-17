@@ -2,8 +2,6 @@
 (function (global) {
   "use strict";
 
-  const pendingImageRequests = new Map();
-
   class ImageZoom {
     static fitContain(imageWidth, imageHeight, boxWidth, boxHeight) {
       const scale = Math.min(boxWidth / imageWidth, boxHeight / imageHeight);
@@ -183,77 +181,55 @@
       Object.entries(parameters).forEach(([key, value]) => url.searchParams.set(key, String(value)));
       const reportProgress = options.reportProgress !== false;
       const requestId = reportProgress ? ++this._progressRequestId : 0;
-      const canShare = !options.signal;
-      const existingRequest = canShare ? pendingImageRequests.get(url.href) : null;
-      if (existingRequest) {
+      let objectUrl;
+      try {
         if (reportProgress)
           this._onProgress({ requestId, active: true, percent: 0, indeterminate: true, action });
-        try {
-          return await existingRequest;
-        } finally {
-          if (reportProgress)
-            this._onProgress({ requestId, active: false, percent: 100, indeterminate: false, action });
-        }
-      }
-
-      let objectUrl;
-      const request = (async () => {
-        try {
-          if (reportProgress)
-            this._onProgress({ requestId, active: true, percent: 0, indeterminate: true, action });
-          const response = await fetch(url, options.signal ? { signal: options.signal } : undefined);
-          if (!response.ok) throw new Error(`Resizer.aspx returned HTTP ${response.status}.`);
-          const total = Number(response.headers.get("content-length"));
-          let blob;
-          if (response.body?.getReader) {
-            const reader = response.body.getReader();
-            const chunks = [];
-            let received = 0;
-            while (true) {
-              const { done, value } = await reader.read();
-              if (done) break;
-              chunks.push(value);
-              received += value.byteLength;
-              if (reportProgress) {
-                this._onProgress({
-                  requestId,
-                  active: true,
-                  percent: total > 0 ? Math.min(100, Math.round(received * 100 / total)) : 0,
-                  indeterminate: !(total > 0),
-                  action
-                });
-              }
+        const response = await fetch(url);
+        if (!response.ok) throw new Error(`Resizer.aspx returned HTTP ${response.status}.`);
+        const total = Number(response.headers.get("content-length"));
+        let blob;
+        if (response.body?.getReader) {
+          const reader = response.body.getReader();
+          const chunks = [];
+          let received = 0;
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            chunks.push(value);
+            received += value.byteLength;
+            if (reportProgress) {
+              this._onProgress({
+                requestId,
+                active: true,
+                percent: total > 0 ? Math.min(100, Math.round(received * 100 / total)) : 0,
+                indeterminate: !(total > 0),
+                action
+              });
             }
-            blob = new Blob(chunks, { type: response.headers.get("content-type") || "image/jpeg" });
-          } else {
-            blob = await response.blob();
           }
-          objectUrl = URL.createObjectURL(blob);
-          return await new Promise((resolve, reject) => {
-            const image = new Image();
-            image.onload = () => resolve(image);
-            image.onerror = () => reject(new Error("The resized image response could not be decoded."));
-            image.src = objectUrl;
-          });
-        } finally {
-          if (objectUrl) URL.revokeObjectURL(objectUrl);
-          if (reportProgress)
-            this._onProgress({ requestId, active: false, percent: 100, indeterminate: false, action });
+          blob = new Blob(chunks, { type: response.headers.get("content-type") || "image/jpeg" });
+        } else {
+          blob = await response.blob();
         }
-      })();
-      if (canShare) pendingImageRequests.set(url.href, request);
-      try {
-        return await request;
+        objectUrl = URL.createObjectURL(blob);
+        return await new Promise((resolve, reject) => {
+          const image = new Image();
+          image.onload = () => resolve(image);
+          image.onerror = () => reject(new Error("The resized image response could not be decoded."));
+          image.src = objectUrl;
+        });
       } finally {
-        if (canShare && pendingImageRequests.get(url.href) === request)
-          pendingImageRequests.delete(url.href);
+        if (objectUrl) URL.revokeObjectURL(objectUrl);
+        if (reportProgress)
+          this._onProgress({ requestId, active: false, percent: 100, indeterminate: false, action });
       }
     }
 
     resize(width, height) {
       const nextWidth = Math.max(1, Math.round(width));
       const nextHeight = Math.max(1, Math.round(height));
-      if (nextWidth === this.viewportWidth && nextHeight === this.viewportHeight) return Promise.resolve();
+      if (nextWidth === this.viewportWidth && nextHeight === this.viewportHeight) return;
       const currentScale = this.content.scaleX || this.zoom;
       const previousCenter = this._image && currentScale > 1
         ? {
@@ -272,7 +248,7 @@
         .drawRect(0, 0, this.viewportWidth, this.viewportHeight);
       this.cropMask.graphics.clear().beginFill("#000")
         .drawRect(0, 0, this.viewportWidth, this.viewportHeight);
-      return this.setImage(imageUrl).then(() => {
+      this.setImage(imageUrl).then(() => {
         if (!previousCenter || nextLoadToken !== this._loadToken || !this._image) return;
         this.zoom = previousCenter.zoom;
         this.centerOn(previousCenter.x, previousCenter.y, false);
@@ -315,16 +291,6 @@
       this._renderCachedTilesForView();
       this._syncNavigator();
       if (requestCrop) this._requestCrop();
-    }
-
-    syncViewFrom(source, requestCrop = false) {
-      if (!source?._image || !this._image || this.isLoading) return;
-      const scale = source.content.scaleX || source.zoom;
-      const imageX = (source.viewportWidth / 2 - source.content.x) / (source._baseScaleX * scale);
-      const imageY = (source.viewportHeight / 2 - source.content.y) / (source._baseScaleY * scale);
-      const x = this.viewportWidth / 2 - imageX * this._baseScaleX * scale;
-      const y = this.viewportHeight / 2 - imageY * this._baseScaleY * scale;
-      this.syncView(scale, x, y, requestCrop);
     }
 
     zoomOn(x, y, amount = this.zoomPercent, animate = true) {
