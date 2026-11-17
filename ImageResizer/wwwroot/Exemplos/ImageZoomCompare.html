@@ -175,7 +175,15 @@
     document.getElementById("neighbor-prefetch").addEventListener("change", event => {
       viewers.improved.setNeighborPrefetch(event.target.checked);
     });
-    if (new URLSearchParams(location.search).has("modal")) document.querySelector(".back").hidden = true;
+    const backLink = document.querySelector(".back");
+    if (new URLSearchParams(location.search).has("modal")) {
+      backLink.textContent = "← Fechar comparação";
+      backLink.href = "#";
+      backLink.addEventListener("click", event => {
+        event.preventDefault();
+        window.parent.postMessage({ type: "imagezoom-close" }, location.origin);
+      });
+    }
   </script>
 </body>
 </html>

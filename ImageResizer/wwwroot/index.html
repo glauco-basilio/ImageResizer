@@ -201,6 +201,10 @@
     demoFrame.addEventListener("load", () => {
       if (demoFrame.src !== "about:blank") dialogFrame.classList.add("loaded");
     });
+    window.addEventListener("message", event => {
+      if (event.origin !== location.origin || event.source !== demoFrame.contentWindow || event.data?.type !== "imagezoom-close") return;
+      dialog.close();
+    });
     document.getElementById("dialog-close").addEventListener("click", () => dialog.close());
     dialog.addEventListener("click", event => { if (event.target === dialog) dialog.close(); });
     dialog.addEventListener("close", () => {
