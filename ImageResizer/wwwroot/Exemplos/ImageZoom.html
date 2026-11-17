@@ -20,7 +20,7 @@
       padding: 20px;
       background: #aedafa;
     }
-    .app { width: min(100%, 836px); }
+    .app { width: min(100%, 1560px, calc((100dvh - 190px) * 1.56)); }
     .viewer-frame {
       position: relative;
       width: 100%;
@@ -158,8 +158,10 @@
     }
     .prefetch-option input { width: 18px; height: 18px; margin: 2px 0 0; accent-color: #1769aa; }
     .prefetch-description { max-width: 620px; margin: 5px auto 0; color: #5a6c7f; font-size: 12px; text-align: center; }
+    body.modal-embed .app { width: min(100%, 1560px, calc((100dvh - 125px) * 1.56)); }
     @media (max-width: 520px) {
       body { padding: 12px; }
+      .app { width: 100%; }
       .viewer-frame { border-width: 12px; }
       .corner-tools { left: 0; bottom: 15px; gap: 4px; }
       .navigator-panel { padding: 2px; border-width: 2px; }
@@ -202,15 +204,20 @@
     <p class="prefetch-description">Ao ativar, já busca as áreas próximas à visão ampliada atual; depois de cada recorte, prepara até oito vizinhos em segundo plano. Os que estiverem prontos aparecem durante o arraste.</p>
   </main>
   <script src="https://code.createjs.com/1.0.0/createjs.min.js"></script>
-  <script src="../js/image-zoom.js?v=neighbor-prefetch-compare-3"></script>
+  <script src="../js/image-zoom.js?v=neighbor-prefetch-wide-1"></script>
   <script>
     const status = document.getElementById("status");
     const progress = document.getElementById("progress");
     const progressFill = document.getElementById("progress-fill");
     const imageUrl = new URLSearchParams(location.search).get("image") || "images/Cambio.jpg";
     let latestProgressRequest = 0;
+    if (new URLSearchParams(location.search).has("modal")) document.body.classList.add("modal-embed");
+    const viewerCanvas = document.getElementById("viewer");
+    const viewerFrame = document.querySelector(".viewer-frame");
+    viewerCanvas.width = Math.max(1, Math.round(viewerFrame.clientWidth));
+    viewerCanvas.height = Math.max(1, Math.round(viewerFrame.clientHeight));
     const viewer = new ImageZoom({
-      canvas: document.getElementById("viewer"),
+      canvas: viewerCanvas,
       navigatorCanvas: document.getElementById("navigator"),
       image: imageUrl,
       neighborPrefetch: document.getElementById("neighbor-prefetch").checked,
@@ -228,6 +235,13 @@
         progress.setAttribute("aria-valuenow", String(percent));
       }
     });
+    const viewerResizeObserver = new ResizeObserver(([entry]) => {
+      const width = Math.round(entry.contentRect.width);
+      const height = Math.round(entry.contentRect.height);
+      if (width > 0 && height > 0 && (width !== viewer.width || height !== viewer.height))
+        viewer.resize(width, height);
+    });
+    viewerResizeObserver.observe(viewerFrame);
     document.getElementById("zoom-in").addEventListener("click", () => viewer.zoomMore());
     document.getElementById("zoom-out").addEventListener("click", () => viewer.zoomLess());
     document.getElementById("reset").addEventListener("click", () => viewer.zoomReset());

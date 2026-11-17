@@ -227,15 +227,32 @@
     }
 
     resize(width, height) {
-      this.viewportWidth = Math.max(1, Math.round(width));
-      this.viewportHeight = Math.max(1, Math.round(height));
+      const nextWidth = Math.max(1, Math.round(width));
+      const nextHeight = Math.max(1, Math.round(height));
+      if (nextWidth === this.viewportWidth && nextHeight === this.viewportHeight) return;
+      const currentScale = this.content.scaleX || this.zoom;
+      const previousCenter = this._image && currentScale > 1
+        ? {
+          x: (this.viewportWidth / 2 - this.content.x) / (this._baseScaleX * currentScale),
+          y: (this.viewportHeight / 2 - this.content.y) / (this._baseScaleY * currentScale),
+          zoom: currentScale
+        }
+        : null;
+      const imageUrl = this.imageUrl;
+      const nextLoadToken = this._loadToken + 1;
+      this.viewportWidth = nextWidth;
+      this.viewportHeight = nextHeight;
       this.canvas.width = this.viewportWidth;
       this.canvas.height = this.viewportHeight;
       this.mask.graphics.clear().beginFill("#000")
         .drawRect(0, 0, this.viewportWidth, this.viewportHeight);
       this.cropMask.graphics.clear().beginFill("#000")
         .drawRect(0, 0, this.viewportWidth, this.viewportHeight);
-      this.setImage(this.imageUrl);
+      this.setImage(imageUrl).then(() => {
+        if (!previousCenter || nextLoadToken !== this._loadToken || !this._image) return;
+        this.zoom = previousCenter.zoom;
+        this.centerOn(previousCenter.x, previousCenter.y, false);
+      });
     }
 
     get width() { return this.viewportWidth; }
