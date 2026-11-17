@@ -398,9 +398,9 @@
         const crop = await this._fetchImage("Crop", parameters);
         if (imageGeneration !== this._imageGeneration) return;
         this._cacheTile(parameters, crop);
+        this._prefetchNeighborTiles(parameters);
         if (cropToken !== this._cropToken) return;
         this._renderCachedTilesForView();
-        this._prefetchNeighborTiles(parameters);
       } catch (error) {
         if (cropToken === this._cropToken) this._onError(error);
       }
@@ -630,6 +630,7 @@
       this._onNavigatorUp = () => {
         this._navigatorDrag = false;
         this._requestCrop();
+        this._onChange(this.getStatus());
       };
       this.navigatorStage.on("stagemousedown", this._onNavigatorDown);
       this.navigatorStage.on("stagemousemove", this._onNavigatorMove);
