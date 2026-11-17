@@ -12,7 +12,7 @@ O objetivo é documentar um trabalho de produto e engenharia de outra época: am
 - Backend ASP.NET Core que informa dimensões e redimensiona ou recorta imagens.
 - Cache em memória para imagens processadas, limitado a 64 MB por processo, com expiração de 24 horas.
 - Cache HTTP com ETag para permitir reutilização pelo navegador e por caches intermediários.
-- Página inicial que apresenta exemplos com imagens de demonstração.
+- Página inicial com exemplos que abrem em modal e permitem alternar para comparação sincronizada lado a lado.
 
 A implementação atual usa CreateJS no navegador e SkiaSharp no backend. O código ActionScript original está preservado em `ImageResizer/com/rimisan/ui/`; os arquivos `.fla`, `.swf` e `.swc` guardam materiais históricos do projeto Flash. A demo executável moderna está em `ImageResizer/wwwroot`.
 
@@ -25,7 +25,9 @@ dotnet build ImageResizer.sln
 dotnet run --project ImageResizer/ImageResizer.csproj
 ```
 
-Abra o endereço impresso pelo `dotnet run`. A página inicial lista as imagens e abre cada uma no visualizador. O CreateJS 1.0.0 é carregado de um CDN, então a demo precisa de internet no navegador.
+Abra o endereço impresso pelo `dotnet run`. Na home, cada imagem pode ser aberta no visualizador ou comparada lado a lado; o Range é o exemplo sugerido para comparação. O CreateJS 1.0.0 é carregado de um CDN, então a demo precisa de internet no navegador.
+
+No VS Code, instale as extensões recomendadas e pressione F5 para compilar e iniciar o projeto com o depurador.
 
 No Hostinger, a aplicação roda em um container com o runtime oficial do .NET. O build de produção é feito localmente e enviado ao VPS; binários e credenciais não são armazenados neste repositório.
 
@@ -37,6 +39,12 @@ As rotas compatíveis com o contrato antigo continuam disponíveis:
 - `/Images/Resizer.aspx` e `/Exemplos/images/Resizer.aspx`
 
 Os caminhos de imagem são resolvidos dentro de `ImageResizer/wwwroot`.
+
+## Experimento: pré-carregamento de tiles vizinhos
+
+Como melhoria experimental sobre o projeto inicial, esta reconstrução prepara os oito recortes ao redor da área atual. A implementação foi feita com ajuda de IA. Depois que o recorte solicitado chega, o navegador busca os vizinhos em segundo plano, com até três requisições simultâneas. Tiles prontos são posicionados imediatamente durante o arraste; onde ainda não há tile, continua aparecendo a prévia de baixa resolução até o próximo recorte ficar pronto. O cache de tiles no navegador é limitado a 32 MB, além do cache de respostas existente no backend.
+
+No exemplo ImageZoom, use a opção **Pré-carregar os recortes vizinhos** para ligar ou desligar o recurso. Ao ativá-la com uma área ampliada, os vizinhos dessa área começam a ser preparados imediatamente, sem esperar outro movimento. A página [ImageZoomCompare.html](ImageResizer/wwwroot/Exemplos/ImageZoomCompare.html) também coloca o comportamento original e a melhoria lado a lado, com zoom e movimento sincronizados e o prefetch ligado apenas no painel melhorado. Para experimentar, faça checkout do branch `experiment/neighbor-tile-prefetch` e rode a aplicação como descrito acima. O branch não altera a demo publicada no `main`.
 
 ## Escopo e limites
 

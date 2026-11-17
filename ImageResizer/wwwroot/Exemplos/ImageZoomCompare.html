@@ -1,0 +1,189 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ImageZoom — comparação de pré-carregamento</title>
+  <style>
+    :root { color-scheme: light; font: 15px/1.45 system-ui, sans-serif; color: #172536; background: #f1f6fa; }
+    * { box-sizing: border-box; }
+    body { min-width: 320px; min-height: 100vh; margin: 0; padding: 28px; }
+    main { width: min(100%, 1840px); margin: auto; }
+    h1 { margin: 0; font-size: clamp(25px, 4vw, 38px); letter-spacing: -.035em; }
+    .intro { margin: 8px 0 20px; color: #526579; }
+    .controls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 18px; }
+    .controls button { min-width: 42px; height: 38px; border: 1px solid #c4d1dd; border-radius: 8px; color: #18324a; background: white; font: 20px/1 system-ui; cursor: pointer; }
+    .controls button:last-of-type { font-size: 17px; }
+    .controls button:focus-visible, input:focus-visible { outline: 3px solid #ed9a4a; outline-offset: 2px; }
+    .compare-toggle { display: inline-flex; align-items: center; gap: 8px; margin-left: 12px; font-weight: 650; cursor: pointer; }
+    .compare-toggle input { width: 18px; height: 18px; accent-color: #1769aa; }
+    .panes { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; }
+    .pane { min-width: 0; padding: 12px; border: 1px solid #d5e0e9; border-radius: 13px; background: white; box-shadow: 0 6px 22px rgb(32 78 112 / 7%); }
+    .pane h2 { display: flex; justify-content: space-between; gap: 8px; margin: 0 0 10px; font-size: 17px; }
+    .badge { align-self: center; padding: 3px 8px; border-radius: 99px; color: #46596b; background: #edf1f4; font-size: 11px; font-weight: 650; }
+    .pane-improved .badge { color: #145b3e; background: #e4f5eb; }
+    .viewer-frame { position: relative; width: 100%; aspect-ratio: 8 / 5; overflow: hidden; border: 10px solid #080a0d; border-radius: 9px; background: #080a0d; }
+    canvas.viewer { display: block; width: 100%; height: 100%; background: white; cursor: grab; }
+    canvas.viewer:active { cursor: grabbing; }
+    .corner-tools { position: absolute; z-index: 2; left: 2px; bottom: 15px; display: flex; align-items: flex-end; gap: 5px; }
+    .navigator-panel { position: relative; padding: 2px; border: 2px solid #111; background: white; box-shadow: 1px 2px 3px rgb(0 0 0 / 25%); }
+    .navigator-title { position: absolute; z-index: 0; inset: 50% 0 auto; margin: 0; transform: translateY(-50%); color: #ef913d; font: 16px/1.1 Georgia, serif; text-align: center; pointer-events: none; }
+    canvas.navigator { position: relative; z-index: 1; display: block; width: 100px; height: 68px; cursor: move; touch-action: none; background: transparent; }
+    .status { position: absolute; top: 5px; right: 6px; z-index: 2; padding: 2px 5px; color: #222; background: rgb(255 255 255 / 82%); font-size: 10px; }
+    .progress { position: absolute; right: 0; bottom: 0; z-index: 3; width: 72px; height: 6px; overflow: hidden; background: #ddd; opacity: 0; }
+    .progress.active { opacity: 1; }
+    .progress-fill { width: 0; height: 100%; background: #ef913d; }
+    .progress.indeterminate .progress-fill { width: 35%; animation: sweep .8s ease-in-out infinite alternate; }
+    @keyframes sweep { to { transform: translateX(190%); } }
+    .caption { margin: 9px 2px 0; color: #526579; font-size: 12px; }
+    .caption strong { color: #26394d; }
+    .back { display: inline-block; margin-top: 20px; color: #1769aa; font-weight: 650; text-underline-offset: 3px; }
+    @media (max-width: 760px) { body { padding: 18px 12px; } .panes { grid-template-columns: 1fr; } }
+    @media (max-width: 380px) { .pane { padding: 8px; } .viewer-frame { border-width: 7px; } canvas.navigator { width: 84px; height: 57px; } }
+    @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: .01ms !important; } }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Compare a navegação</h1>
+    <p class="intro">Arraste qualquer painel ou use a roda do mouse. Zoom e posição acompanham nos dois lados para você comparar o mesmo movimento.</p>
+    <div class="controls" role="group" aria-label="Controles sincronizados de zoom">
+      <button id="zoom-in" type="button" aria-label="Ampliar">+</button>
+      <button id="zoom-out" type="button" aria-label="Reduzir">−</button>
+      <button id="reset" type="button" aria-label="Voltar ao enquadramento original">↻</button>
+      <label class="compare-toggle"><input id="neighbor-prefetch" type="checkbox" checked> Pré-carregar até 8 recortes vizinhos no painel melhorado</label>
+    </div>
+    <section class="panes" aria-label="Comparação lado a lado">
+      <article class="pane">
+        <h2>Comportamento original <span class="badge">sem prefetch</span></h2>
+        <div class="viewer-frame">
+          <canvas id="viewer-original" class="viewer" width="800" height="500" aria-label="Visualizador original"></canvas>
+          <div class="corner-tools"><div class="navigator-panel"><p class="navigator-title">IZ Navigator</p><canvas id="navigator-original" class="navigator" width="190" height="130" aria-label="Miniatura original"></canvas></div></div>
+          <span id="status-original" class="status" aria-live="polite">Carregando…</span>
+          <div id="progress-original" class="progress" role="progressbar" aria-label="Carregamento do painel original" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><div class="progress-fill"></div></div>
+        </div>
+        <p class="caption">Após cada movimento, pede o recorte de alta resolução necessário para a nova área.</p>
+      </article>
+      <article class="pane pane-improved">
+        <h2>Com pré-carregamento <span class="badge">melhoria experimental</span></h2>
+        <div class="viewer-frame">
+          <canvas id="viewer-prefetch" class="viewer" width="800" height="500" aria-label="Visualizador com pré-carregamento"></canvas>
+          <div class="corner-tools"><div class="navigator-panel"><p class="navigator-title">IZ Navigator</p><canvas id="navigator-prefetch" class="navigator" width="190" height="130" aria-label="Miniatura com pré-carregamento"></canvas></div></div>
+          <span id="status-prefetch" class="status" aria-live="polite">Carregando…</span>
+          <div id="progress-prefetch" class="progress" role="progressbar" aria-label="Carregamento do painel com pré-carregamento" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><div class="progress-fill"></div></div>
+        </div>
+        <p class="caption">Depois do recorte pedido, busca os vizinhos em segundo plano e mostra os que já ficaram prontos durante o arraste.</p>
+      </article>
+    </section>
+    <a class="back" href="../">← Voltar aos exemplos</a>
+  </main>
+  <script src="https://code.createjs.com/1.0.0/createjs.min.js"></script>
+  <script src="../js/image-zoom.js?v=neighbor-prefetch-wide-1"></script>
+  <script>
+    const image = new URLSearchParams(location.search).get("image") || "images/range.jpg";
+
+    function progressHandler(prefix) {
+      let latestRequest = 0;
+      const bar = document.getElementById(`progress-${prefix}`);
+      const fill = bar.querySelector(".progress-fill");
+      return ({ requestId, active, percent = 0, indeterminate }) => {
+        if (requestId < latestRequest) return;
+        latestRequest = requestId;
+        bar.classList.toggle("active", active);
+        bar.classList.toggle("indeterminate", active && indeterminate);
+        fill.style.width = `${percent}%`;
+        bar.setAttribute("aria-valuenow", String(percent));
+      };
+    }
+
+    function createViewer(prefix, neighborPrefetch) {
+      const status = document.getElementById(`status-${prefix}`);
+      return new ImageZoom({
+        canvas: document.getElementById(prefix === "original" ? "viewer-original" : "viewer-prefetch"),
+        navigatorCanvas: document.getElementById(prefix === "original" ? "navigator-original" : "navigator-prefetch"),
+        image,
+        neighborPrefetch,
+        zoomPercent: 50,
+        easingDuration: 250,
+        onLoad: ({ width, height }) => { status.textContent = `${width} × ${height} · 100%`; },
+        onError: () => { status.textContent = "Falha ao carregar a imagem"; },
+        onChange: ({ width, height, zoomPercent }) => { status.textContent = `${width} × ${height} · ${zoomPercent}%`; },
+        onProgress: progressHandler(prefix)
+      });
+    }
+
+    const viewers = { original: createViewer("original", false), improved: createViewer("prefetch", true) };
+    let leader = null;
+    let syncFrame = 0;
+    let syncUntil = 0;
+
+    function syncFollower(requestCrop = false) {
+      if (!leader) return;
+      const follower = leader === viewers.original ? viewers.improved : viewers.original;
+      follower.syncView(leader.content.scaleX || leader.zoom, leader.content.x, leader.content.y, requestCrop);
+    }
+
+    function runSyncFrame() {
+      syncFrame = 0;
+      if (!leader) return;
+      syncFollower(false);
+      if (performance.now() < syncUntil) syncFrame = requestAnimationFrame(runSyncFrame);
+    }
+
+    function markLeader(viewer, keepSyncing = 450) {
+      leader = viewer;
+      syncUntil = performance.now() + keepSyncing;
+      if (!syncFrame) syncFrame = requestAnimationFrame(runSyncFrame);
+    }
+
+    for (const [name, viewer] of Object.entries(viewers)) {
+      const canvas = viewer.canvas;
+      canvas.addEventListener("pointerdown", () => markLeader(viewer, 600));
+      canvas.addEventListener("pointermove", event => { if (event.buttons) markLeader(viewer, 100); });
+      canvas.addEventListener("wheel", () => markLeader(viewer, 500), { passive: true });
+      const navigatorCanvas = viewer.navigatorCanvas;
+      navigatorCanvas.addEventListener("pointerdown", () => markLeader(viewer, 600));
+      navigatorCanvas.addEventListener("pointermove", event => { if (event.buttons) markLeader(viewer, 100); });
+    }
+
+    window.addEventListener("pointerup", () => {
+      if (!leader) return;
+      markLeader(leader, 350);
+      syncFollower(true);
+    });
+    for (const viewer of Object.values(viewers)) {
+      viewer._onChange = state => {
+        const status = document.getElementById(viewer === viewers.original ? "status-original" : "status-prefetch");
+        status.textContent = `${state.width} × ${state.height} · ${state.zoomPercent}%`;
+        markLeader(viewer, 350);
+        syncFollower(true);
+      };
+    }
+
+    document.getElementById("zoom-in").addEventListener("click", () => {
+      viewers.original.zoomMore();
+      viewers.improved.zoomMore();
+    });
+    document.getElementById("zoom-out").addEventListener("click", () => {
+      viewers.original.zoomLess();
+      viewers.improved.zoomLess();
+    });
+    document.getElementById("reset").addEventListener("click", () => {
+      viewers.original.zoomReset();
+      viewers.improved.zoomReset();
+    });
+    document.getElementById("neighbor-prefetch").addEventListener("change", event => {
+      viewers.improved.setNeighborPrefetch(event.target.checked);
+    });
+    const backLink = document.querySelector(".back");
+    if (new URLSearchParams(location.search).has("modal")) {
+      backLink.textContent = "← Fechar comparação";
+      backLink.href = "#";
+      backLink.addEventListener("click", event => {
+        event.preventDefault();
+        window.parent.postMessage({ type: "imagezoom-close" }, location.origin);
+      });
+    }
+  </script>
+</body>
+</html>
