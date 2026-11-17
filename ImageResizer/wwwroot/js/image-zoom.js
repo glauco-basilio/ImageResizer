@@ -257,6 +257,21 @@
       this._tilePrefetchQueue.length = 0;
     }
 
+    syncView(scale, x, y, requestCrop = false) {
+      if (!this._image || this.isLoading) return;
+      const nextScale = Math.max(1, Number(scale));
+      const position = this._clampPosition(Number(x), Number(y), nextScale);
+      createjs.Tween.removeTweens(this.content);
+      this.zoom = nextScale;
+      this.content.x = position.x;
+      this.content.y = position.y;
+      this.content.scaleX = nextScale;
+      this.content.scaleY = nextScale;
+      this._renderCachedTilesForView();
+      this._syncNavigator();
+      if (requestCrop) this._requestCrop();
+    }
+
     zoomOn(x, y, amount = this.zoomPercent, animate = true) {
       if (!this._image || this.isLoading) return;
       const oldScale = this.content.scaleX || this.zoom;
